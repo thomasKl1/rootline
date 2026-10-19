@@ -16,10 +16,13 @@ export type NewPlant = {
   interval_winter_days: number | null
 }
 
+export type Household = { id: string; name: string; timezone: string; reminder_hour: number }
+
 type GardenState = {
   loading: boolean
   error: string | null
   householdId: string | null
+  household: Household | null
   plants: Plant[]
   lastWatered: Map<string, Date>
   latestReading: Map<string, Reading>
@@ -31,6 +34,7 @@ const initial: GardenState = {
   loading: true,
   error: null,
   householdId: null,
+  household: null,
   plants: [],
   lastWatered: new Map(),
   latestReading: new Map(),
@@ -70,7 +74,8 @@ export function useGarden() {
       return
     }
 
-    const [plants, events, readings] = await Promise.all([
+    const [household, plants, events, readings] = await Promise.all([
+      supabase.from('households').select('id, name, timezone, reminder_hour').eq('id', householdId).single(),
       supabase.from('plants').select('*').eq('household_id', householdId).is('archived_at', null).order('name'),
       supabase
         .from('events')
@@ -87,7 +92,7 @@ export function useGarden() {
         .limit(300),
     ])
 
-    const error = plants.error ?? events.error ?? readings.error
+    const error = household.error ?? plants.error ?? events.error ?? readings.error
     if (error) {
       setState((s) => ({ ...s, loading: false, error: error.message }))
       return
@@ -108,6 +113,7 @@ export function useGarden() {
       loading: false,
       error: null,
       householdId,
+      household: household.data as Household,
       plants: plantList,
       lastWatered,
       latestReading,
@@ -139,6 +145,18 @@ export function useGarden() {
         // La plante est enregistrée même si la photo échoue : on ne bloque pas l'ajout.
         if (!upload.error) await supabase.from('plants').update({ photo_path: path }).eq('id', data.id)
       }
+      await load()
+      return null
+    },
+    [state.householdId, load],
+  )
+
+  /** Réglages du foyer (heure du récapitulatif, fuseau horaire). */
+  const updateHousehold = useCallback(
+    async (fields: Partial<Omit<Household, 'id'>>) => {
+      if (!state.householdId) return 'Foyer introuvable.'
+      const { error } = await supabase.from('households').update(fields).eq('id', state.householdId)
+      if (error) return error.message
       await load()
       return null
     },
@@ -190,5 +208,5 @@ export function useGarden() {
     [load],
   )
 
-  return { ...state, reload: load, addPlant, updatePlant, deletePlant, water, undoEvent }
+  return { ...state, reload: load, updateHousehold, addPlant, updatePlant, deletePlant, water, undoEvent }
 }

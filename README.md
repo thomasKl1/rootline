@@ -10,7 +10,7 @@
 | --- | --- | --- |
 | 1 | Squelette : web app installable, connexion par e-mail, base de données | ✅ |
 | 2 | Plantes : photo, identification Pl@ntNet, seuils Open Plantbook | ✅ |
-| 3 | Rappels et notifications push | à venir |
+| 3 | Rappels et notifications push | ✅ |
 | 4 | Capteurs Flower Care + passerelle ESP32, détection automatique de l'arrosage | à venir |
 | 5 | Plan de l'appartement, historique, courbes | à venir |
 

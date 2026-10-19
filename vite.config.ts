@@ -11,6 +11,10 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
+      // Service worker écrit à la main (src/sw.ts) pour gérer les notifications push.
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
       registerType: 'autoUpdate',
       includeAssets: ['icon.svg'],
       manifest: {
@@ -29,15 +33,8 @@ export default defineConfig({
           { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
-      workbox: {
-        navigateFallback: 'index.html',
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com\//,
-            handler: 'CacheFirst',
-            options: { cacheName: 'google-fonts', expiration: { maxEntries: 20 } },
-          },
-        ],
+      injectManifest: {
+        globPatterns: ['**/*.{js,css,html,svg,png,webmanifest}'],
       },
     }),
   ],

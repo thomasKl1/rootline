@@ -69,7 +69,7 @@ function Garden({ session }: { session: Session }) {
       {tab === 'plan' && (
         <Soon title="Plan" text="Bientôt : le plan de ton appartement, avec une pastille par plante." />
       )}
-      {tab === 'settings' && <Settings email={session.user.email} />}
+      {tab === 'settings' && <Settings email={session.user.email} garden={garden} />}
 
       {toast && (
         <div className="toast" role="status">
