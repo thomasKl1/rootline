@@ -3,6 +3,7 @@ import { careForSpecies, type Care } from '../lib/identify'
 import { computeStatus } from '../lib/status'
 import type { Plant } from '../lib/types'
 import type { useGarden } from '../lib/useGarden'
+import { ConfirmDialog } from './ConfirmDialog'
 import { applyCare, careOrigin, PlantFields, toPlantFields, valuesFromPlant, type PlantFormValues } from './PlantForm'
 
 type Garden = ReturnType<typeof useGarden>
@@ -51,12 +52,13 @@ export function PlantSheet({ plant, garden, onClose, onDone }: Props) {
   }
 
   async function remove() {
-    if (!confirmDelete) return setConfirmDelete(true)
     setBusy('delete')
     const err = await garden.deletePlant(plant)
     setBusy(null)
-    if (err) setError(err)
-    else onDone(`${plant.name} supprimée`)
+    if (err) {
+      setConfirmDelete(false)
+      setError(err)
+    } else onDone(`${plant.name} supprimée`)
   }
 
   return (
@@ -117,10 +119,21 @@ export function PlantSheet({ plant, garden, onClose, onDone }: Props) {
           </button>
         </div>
 
-        <button type="button" className="btn danger" onClick={remove} disabled={busy !== null}>
-          {busy === 'delete' ? 'Suppression…' : confirmDelete ? 'Confirmer : supprimer la plante et son historique' : 'Supprimer la plante'}
+        <button type="button" className="btn danger" onClick={() => setConfirmDelete(true)} disabled={busy !== null}>
+          Supprimer la plante
         </button>
       </form>
+
+      {confirmDelete && (
+        <ConfirmDialog
+          title={`Supprimer ${plant.name} ?`}
+          message="Son historique d'arrosage et sa photo seront aussi supprimés. Cette action est définitive."
+          confirmLabel="Supprimer"
+          busy={busy === 'delete'}
+          onConfirm={remove}
+          onCancel={() => setConfirmDelete(false)}
+        />
+      )}
     </div>
   )
 }
