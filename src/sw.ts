@@ -34,8 +34,8 @@ self.addEventListener('push', (event) => {
     self.registration.showNotification(data.title ?? 'Rootline', {
       body: data.body ?? '',
       tag: data.tag,
-      icon: 'icon-192.png',
-      badge: 'icon-192.png',
+      icon: 'icon-192.png', // grande icône en couleur, dans la notification
+      badge: 'badge-96.png', // petite icône de la barre d'état : silhouette sur fond transparent
       lang: 'fr',
     }),
   )
