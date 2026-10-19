@@ -5,6 +5,13 @@ import type { Plant, Reading, WaterEvent } from './types'
 export type NewPlant = {
   name: string
   room: string | null
+  species: string | null
+  species_common: string | null
+  moisture_min: number | null
+  moisture_max: number | null
+  conductivity_min: number | null
+  conductivity_max: number | null
+  light_min: number | null
   interval_summer_days: number | null
   interval_winter_days: number | null
 }
@@ -16,6 +23,8 @@ type GardenState = {
   plants: Plant[]
   lastWatered: Map<string, Date>
   latestReading: Map<string, Reading>
+  /** URL temporaire (1 h) de la photo de chaque plante, par id de plante. */
+  photoUrls: Map<string, string>
 }
 
 const initial: GardenState = {
@@ -25,6 +34,24 @@ const initial: GardenState = {
   plants: [],
   lastWatered: new Map(),
   latestReading: new Map(),
+  photoUrls: new Map(),
+}
+
+const PHOTO_BUCKET = 'plant-photos'
+
+/** Les photos sont dans un espace privé : on demande des liens signés, valables une heure. */
+async function signPhotos(plants: Plant[]) {
+  const withPhoto = plants.filter((p) => p.photo_path)
+  const urls = new Map<string, string>()
+  if (withPhoto.length === 0) return urls
+  const { data } = await supabase.storage
+    .from(PHOTO_BUCKET)
+    .createSignedUrls(withPhoto.map((p) => p.photo_path!), 3600)
+  for (const item of data ?? []) {
+    const plant = withPhoto.find((p) => p.photo_path === item.path)
+    if (plant && item.signedUrl) urls.set(plant.id, item.signedUrl)
+  }
+  return urls
 }
 
 /** Charge le foyer de l'utilisateur, ses plantes, leurs derniers arrosages et mesures. */
@@ -76,13 +103,15 @@ export function useGarden() {
       if (!latestReading.has(r.sensor_mac)) latestReading.set(r.sensor_mac, r)
     }
 
+    const plantList = (plants.data ?? []) as Plant[]
     setState({
       loading: false,
       error: null,
       householdId,
-      plants: (plants.data ?? []) as Plant[],
+      plants: plantList,
       lastWatered,
       latestReading,
+      photoUrls: await signPhotos(plantList),
     })
   }, [])
 
@@ -90,11 +119,26 @@ export function useGarden() {
     void load()
   }, [load])
 
+  /** Crée la plante, puis envoie sa photo dans le dossier du foyer (<foyer>/<plante>.jpg). */
   const addPlant = useCallback(
-    async (p: NewPlant) => {
-      if (!state.householdId) return 'Foyer introuvable.'
-      const { error } = await supabase.from('plants').insert({ ...p, household_id: state.householdId })
+    async (p: NewPlant, photo: Blob | null) => {
+      const householdId = state.householdId
+      if (!householdId) return 'Foyer introuvable.'
+      const { data, error } = await supabase
+        .from('plants')
+        .insert({ ...p, household_id: householdId })
+        .select('id')
+        .single()
       if (error) return error.message
+
+      if (photo) {
+        const path = `${householdId}/${data.id}.jpg`
+        const upload = await supabase.storage
+          .from(PHOTO_BUCKET)
+          .upload(path, photo, { contentType: 'image/jpeg', upsert: true })
+        // La plante est enregistrée même si la photo échoue : on ne bloque pas l'ajout.
+        if (!upload.error) await supabase.from('plants').update({ photo_path: path }).eq('id', data.id)
+      }
       await load()
       return null
     },

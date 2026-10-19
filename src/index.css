@@ -179,6 +179,9 @@ select {
   font-size: 22px;
   color: var(--accent);
 }
+img.thumb {
+  object-fit: cover;
+}
 .plant-body {
   flex: 1;
   min-width: 0;
@@ -365,6 +368,147 @@ select:focus-visible {
     transform: translateY(24px);
     opacity: 0;
   }
+}
+
+/* --- Ajout avec photo ---------------------------------------------------- */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+label.btn {
+  cursor: pointer;
+}
+.photo-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 180px;
+  border: 2px dashed #cbc3b5;
+  border-radius: 20px;
+  background: var(--surface);
+  color: var(--accent);
+  cursor: pointer;
+  text-align: center;
+  padding: 16px;
+}
+.photo-drop:focus-within {
+  outline: 3px solid rgba(47, 107, 71, 0.35);
+}
+.photo-drop .name {
+  color: var(--ink);
+}
+.identifying {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0 16px;
+}
+.preview {
+  width: 100%;
+  max-height: 280px;
+  object-fit: cover;
+  border-radius: 16px;
+  animation: pulse 1.6s ease-in-out infinite;
+}
+@keyframes pulse {
+  50% {
+    opacity: 0.7;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .preview,
+  .sheet {
+    animation: none;
+  }
+}
+.pick-head {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.thumb-img {
+  width: 64px;
+  height: 64px;
+  border-radius: 14px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.choices {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.choice {
+  width: 100%;
+  min-height: 60px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1.5px solid var(--line-strong);
+  border-radius: 14px;
+  background: var(--surface);
+  text-align: left;
+  cursor: pointer;
+}
+.choice:active {
+  border-color: var(--accent);
+}
+.choice-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.score {
+  font-weight: 600;
+  color: var(--accent);
+  font-size: 14px;
+}
+.with-unit {
+  position: relative;
+  display: block;
+}
+.with-unit input {
+  padding-right: 64px;
+}
+.unit {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 13px;
+  color: var(--muted);
+  pointer-events: none;
+}
+.thresholds summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.thresholds summary::-webkit-details-marker {
+  display: none;
+}
+.thresholds[open] summary {
+  margin-bottom: 14px;
 }
 
 /* --- Barre d'onglets et toast -------------------------------------------- */

@@ -9,6 +9,9 @@ export type Plant = {
   sensor_mac: string | null
   moisture_min: number | null
   moisture_max: number | null
+  conductivity_min: number | null
+  conductivity_max: number | null
+  light_min: number | null
   interval_summer_days: number | null
   interval_winter_days: number | null
   notes: string | null

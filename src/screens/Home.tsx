@@ -80,7 +80,13 @@ export function Home({ garden, firstName, onAdd, onWater }: Props) {
               </ul>
             ) : (
               list.map(({ plant, status }) => (
-                <PlantCard key={plant.id} plant={plant} status={status} onWater={() => onWater(plant)} />
+                <PlantCard
+                  key={plant.id}
+                  plant={plant}
+                  status={status}
+                  photoUrl={garden.photoUrls.get(plant.id)}
+                  onWater={() => onWater(plant)}
+                />
               ))
             )}
           </section>
@@ -90,13 +96,18 @@ export function Home({ garden, firstName, onAdd, onWater }: Props) {
   )
 }
 
-function PlantCard({ plant, status, onWater }: { plant: Plant; status: PlantStatus; onWater: () => void }) {
+function PlantCard(props: { plant: Plant; status: PlantStatus; photoUrl: string | undefined; onWater: () => void }) {
+  const { plant, status, photoUrl, onWater } = props
   const u = status.urgency
   return (
     <article className="card plant-card">
-      <div className="thumb" aria-hidden="true">
-        {plant.name.slice(0, 1).toUpperCase()}
-      </div>
+      {photoUrl ? (
+        <img className="thumb" src={photoUrl} alt="" loading="lazy" />
+      ) : (
+        <div className="thumb" aria-hidden="true">
+          {plant.name.slice(0, 1).toUpperCase()}
+        </div>
+      )}
       <div className="plant-body">
         <div className="plant-head">
           <span className="name">{plant.name}</span>

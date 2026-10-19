@@ -9,7 +9,7 @@
 | Étape | Contenu | État |
 | --- | --- | --- |
 | 1 | Squelette : web app installable, connexion par e-mail, base de données | ✅ |
-| 2 | Plantes : photo, identification Pl@ntNet, seuils Open Plantbook | à venir |
+| 2 | Plantes : photo, identification Pl@ntNet, seuils Open Plantbook | ✅ |
 | 3 | Rappels et notifications push | à venir |
 | 4 | Capteurs Flower Care + passerelle ESP32, détection automatique de l'arrosage | à venir |
 | 5 | Plan de l'appartement, historique, courbes | à venir |
@@ -30,7 +30,10 @@
 3. Dans **Authentication > URL Configuration** :
    - *Site URL* : l'adresse de ton app, par ex. `https://<ton-compte>.github.io/rootline/`
    - *Redirect URLs* : ajoute aussi `http://localhost:5173/**` pour le développement.
-4. Dans **Authentication > Email Templates > Magic Link**, ajoute le code à usage unique au message pour pouvoir te connecter directement dans l'app installée :
+4. Exécute aussi les migrations suivantes du dossier `supabase/migrations/`, dans l'ordre.
+5. Crée des comptes gratuits sur [Pl@ntNet](https://my.plantnet.org) et [Open Plantbook](https://open.plantbook.io), puis, dans **Edge Functions > Secrets**, ajoute `PLANTNET_API_KEY`, `OPENPLANTBOOK_CLIENT_ID` et `OPENPLANTBOOK_CLIENT_SECRET`.
+6. Déploie la fonction d'identification : `npx supabase functions deploy identify-plant --project-ref <ton-projet>`.
+7. Dans **Authentication > Email Templates > Magic Link** (nécessite un SMTP personnalisé), ajoute le code à usage unique au message pour pouvoir te connecter directement dans l'app installée :
 
    ```html
    <p>Ton code de connexion : <strong>{{ .Token }}</strong></p>

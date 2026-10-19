@@ -83,11 +83,12 @@ function Garden({ session }: { session: Session }) {
       {adding && (
         <AddPlant
           onCancel={() => setAdding(false)}
-          onSave={async (p) => {
-            const err = await garden.addPlant(p)
+          onSave={async (p, photo) => {
+            const err = await garden.addPlant(p, photo)
             if (!err) {
               setAdding(false)
               setTab('plants')
+              showToast(`${p.name} ajoutée`, null)
             }
             return err
           }}
