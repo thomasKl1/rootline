@@ -32,7 +32,11 @@
    - *Redirect URLs* : ajoute aussi `http://localhost:5173/**` pour le développement.
 4. Exécute aussi les migrations suivantes du dossier `supabase/migrations/`, dans l'ordre.
 5. Crée des comptes gratuits sur [Pl@ntNet](https://my.plantnet.org) et [Open Plantbook](https://open.plantbook.io), puis, dans **Edge Functions > Secrets**, ajoute `PLANTNET_API_KEY`, `OPENPLANTBOOK_CLIENT_ID` et `OPENPLANTBOOK_CLIENT_SECRET`.
-6. Déploie la fonction d'identification : `npx supabase functions deploy identify-plant --project-ref <ton-projet>`.
+6. Déploie les fonctions :
+   - `npx supabase functions deploy identify-plant --project-ref <ton-projet>`
+   - `npx supabase functions deploy notifications --no-verify-jwt --project-ref <ton-projet>` (elle vérifie elle-même l'utilisateur ou le secret de la tâche planifiée)
+
+   La migration `0003_reminders.sql` contient `<ton-projet>` : remplace-le par l'identifiant de ton projet avant de l'exécuter. Les clés des notifications (VAPID) sont créées automatiquement au premier usage.
 7. Dans **Authentication > Email Templates > Magic Link** (nécessite un SMTP personnalisé), ajoute le code à usage unique au message pour pouvoir te connecter directement dans l'app installée :
 
    ```html
