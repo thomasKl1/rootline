@@ -1,0 +1,431 @@
+/* Rootline — direction « Botanique » : fond crème, titres Fraunces, texte Figtree. */
+:root {
+  --bg: #f6f3ec;
+  --surface: #ffffff;
+  --ink: #1f2a22;
+  --ink-2: #3d4a42;
+  --muted: #5b6660;
+  --line: #efe7dc;
+  --line-strong: #e6dfd3;
+  --accent: #2f6b47;
+  --accent-ink: #ffffff;
+  --accent-press: #24553a;
+  --late: #a34723;
+  --today: #8a5a00;
+  --soon: #6f6420;
+  --ok: #2f6b47;
+  --track: #efe7dc;
+  --radius: 16px;
+  --font-display: 'Fraunces', Georgia, serif;
+  --font-body: 'Figtree', system-ui, sans-serif;
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+.app {
+  max-width: 480px;
+  margin: 0 auto;
+  min-height: 100dvh;
+}
+
+.screen {
+  padding: max(28px, env(safe-area-inset-top)) 16px calc(96px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* --- Typographie --------------------------------------------------------- */
+.display {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 32px;
+  line-height: 1.1;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+.display.small {
+  font-size: 22px;
+}
+.lead {
+  margin: 0;
+  font-size: 15px;
+  color: var(--ink-2);
+}
+.muted {
+  color: var(--muted);
+  margin: 0;
+}
+.small {
+  font-size: 13px;
+}
+.hint {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 0;
+}
+.capitalize::first-letter {
+  text-transform: uppercase;
+}
+.name {
+  font-weight: 600;
+  font-size: 16px;
+}
+.pad {
+  padding: 0 4px;
+}
+.error {
+  color: var(--late);
+  margin: 0;
+  font-size: 14px;
+}
+
+/* --- Accueil ------------------------------------------------------------- */
+.home-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 4px;
+}
+.home-header .muted {
+  font-size: 13px;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.group-title {
+  margin: 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.tone-late {
+  color: var(--late);
+}
+.tone-today {
+  color: var(--today);
+}
+.tone-soon {
+  color: var(--soon);
+}
+.tone-ok {
+  color: var(--ok);
+}
+.tone-bg-late {
+  background: var(--late);
+}
+.tone-bg-today {
+  background: var(--today);
+}
+.tone-bg-soon {
+  background: var(--soon);
+}
+.tone-bg-ok {
+  background: var(--ok);
+}
+
+.card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: 0 1px 0 rgba(31, 42, 34, 0.06);
+}
+.pad-card {
+  padding: 16px;
+}
+
+.plant-card {
+  padding: 14px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.thumb {
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  background: #dce6d8;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 22px;
+  color: var(--accent);
+}
+.plant-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.plant-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+.meter {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--track);
+  overflow: hidden;
+}
+.meter-fill {
+  height: 100%;
+  border-radius: 3px;
+}
+
+.compact-list {
+  list-style: none;
+  margin: 0;
+  padding: 4px 14px;
+  background: var(--surface);
+  border-radius: var(--radius);
+}
+.compact-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+.compact-list li:last-child {
+  border-bottom: none;
+}
+.compact-list .muted {
+  font-size: 14px;
+  text-align: right;
+}
+
+.empty {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 28px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+/* --- Boutons et champs --------------------------------------------------- */
+.btn {
+  min-height: 48px;
+  padding: 0 18px;
+  border-radius: 14px;
+  border: none;
+  font-weight: 600;
+  font-size: 15px;
+  cursor: pointer;
+}
+.btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.btn.primary {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.btn.primary:active:not(:disabled) {
+  background: var(--accent-press);
+}
+.btn.ghost {
+  background: transparent;
+  border: 1.5px solid var(--line-strong);
+}
+.btn.pill {
+  min-height: 44px;
+  border-radius: 22px;
+  padding: 0 14px;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+.btn:focus-visible,
+.tab:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 3px solid rgba(47, 107, 71, 0.35);
+  outline-offset: 2px;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.row {
+  display: flex;
+  gap: 10px;
+}
+.grow {
+  flex: 1;
+  min-width: 0;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+.field > span,
+.field > legend {
+  font-size: 14px;
+  font-weight: 500;
+  padding: 0;
+}
+.field input,
+.field select {
+  min-height: 48px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1.5px solid var(--line-strong);
+  background: var(--surface);
+  width: 100%;
+}
+
+/* --- Connexion ----------------------------------------------------------- */
+.login {
+  max-width: 420px;
+  margin: 0 auto;
+  min-height: 100dvh;
+  padding: 64px 24px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.login-logo {
+  border-radius: 18px;
+}
+.login form {
+  margin-top: 12px;
+}
+.login p {
+  margin: 0;
+}
+
+/* --- Feuille d'ajout ----------------------------------------------------- */
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(31, 42, 34, 0.35);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 20;
+}
+.sheet {
+  width: 100%;
+  max-width: 480px;
+  max-height: 92dvh;
+  overflow-y: auto;
+  background: var(--bg);
+  border-radius: 24px 24px 0 0;
+  padding: 12px 20px calc(24px + env(safe-area-inset-bottom));
+  animation: sheet-in 0.22s ease-out;
+}
+.grabber {
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
+  background: #cbc3b5;
+  align-self: center;
+}
+@keyframes sheet-in {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+}
+
+/* --- Barre d'onglets et toast -------------------------------------------- */
+.tabbar {
+  position: fixed;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 480px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  padding: 8px 8px calc(12px + env(safe-area-inset-bottom));
+  background: var(--surface);
+  border-top: 1px solid var(--line-strong);
+  z-index: 10;
+}
+.tab {
+  min-height: 48px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+  border-radius: 12px;
+}
+.tab.active {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.toast {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(88px + env(safe-area-inset-bottom));
+  width: calc(100% - 32px);
+  max-width: 448px;
+  background: var(--ink);
+  color: #fff;
+  border-radius: 14px;
+  padding: 10px 10px 10px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  z-index: 15;
+  font-size: 14px;
+}
+.toast-action {
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: none;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
