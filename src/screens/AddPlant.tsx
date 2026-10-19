@@ -1,8 +1,8 @@
 import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react'
 import { identifyPhoto, searchSpecies, type Candidate } from '../lib/identify'
 import { prepareImage } from '../lib/image'
-import { ROOMS } from '../lib/types'
 import type { NewPlant } from '../lib/useGarden'
+import { careOrigin, PlantFields, toPlantFields, valuesFromCare, type PlantFormValues } from './PlantForm'
 
 type Props = {
   onCancel: () => void
@@ -215,36 +215,17 @@ function Details(props: {
   onSave: (p: NewPlant) => Promise<string | null>
 }) {
   const c = props.candidate
-  const care = c?.care
-  const [name, setName] = useState(c ? displayName(c) : '')
-  const [room, setRoom] = useState('')
-  const [summer, setSummer] = useState(care?.interval_summer_days ?? 7)
-  const [winter, setWinter] = useState(care?.interval_winter_days ?? 14)
-  const [moistMin, setMoistMin] = useState<number | ''>(care?.moisture_min ?? '')
-  const [moistMax, setMoistMax] = useState<number | ''>(care?.moisture_max ?? '')
-  const [ecMin, setEcMin] = useState<number | ''>(care?.conductivity_min ?? '')
-  const [ecMax, setEcMax] = useState<number | ''>(care?.conductivity_max ?? '')
-  const [lightMin, setLightMin] = useState<number | ''>(care?.light_min ?? '')
+  const [values, setValues] = useState<PlantFormValues>(() => valuesFromCare(c ? displayName(c) : '', c?.care))
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
-  const orNull = (v: number | '') => (v === '' ? null : v)
 
   async function submit(e: FormEvent) {
     e.preventDefault()
     setBusy(true)
     const err = await props.onSave({
-      name: name.trim(),
-      room: room || null,
+      ...toPlantFields(values),
       species: c?.scientificName ?? null,
       species_common: c?.commonName ?? null,
-      moisture_min: orNull(moistMin),
-      moisture_max: orNull(moistMax),
-      conductivity_min: orNull(ecMin),
-      conductivity_max: orNull(ecMax),
-      light_min: orNull(lightMin),
-      interval_summer_days: summer,
-      interval_winter_days: winter,
     })
     setBusy(false)
     if (err) setError(err)
@@ -259,53 +240,13 @@ function Details(props: {
             <p className="small muted">
               <em>{c.scientificName}</em>
               <br />
-              {care?.source === 'openplantbook' ? 'Besoins issus d’Open Plantbook' : 'Besoins par défaut, à ajuster'}
+              {careOrigin(c.care)}
             </p>
           )}
         </div>
       )}
 
-      <label className="field">
-        <span>Nom</span>
-        <input required maxLength={80} value={name} onChange={(e) => setName(e.target.value)} placeholder="Monstera du salon" />
-      </label>
-
-      <label className="field">
-        <span>Pièce</span>
-        <select value={room} onChange={(e) => setRoom(e.target.value)}>
-          <option value="">Non précisée</option>
-          {ROOMS.map((r) => (
-            <option key={r}>{r}</option>
-          ))}
-        </select>
-      </label>
-
-      <fieldset className="field">
-        <legend>Arrosage sans capteur, tous les…</legend>
-        <div className="row">
-          <NumberField label="Été (avr.–sept.)" value={summer} min={1} max={90} onChange={(v) => setSummer(v === '' ? 1 : v)} unit="j" />
-          <NumberField label="Hiver (oct.–mars)" value={winter} min={1} max={90} onChange={(v) => setWinter(v === '' ? 1 : v)} unit="j" />
-        </div>
-      </fieldset>
-
-      <details className="card pad-card thresholds">
-        <summary>
-          <span className="name">Seuils pour le capteur</span>
-          <span className="small muted">{summarizeThresholds(moistMin, moistMax, ecMin, ecMax, lightMin)}</span>
-        </summary>
-        <div className="stack">
-          <div className="row">
-            <NumberField label="Humidité min." value={moistMin} min={0} max={100} onChange={setMoistMin} unit="%" />
-            <NumberField label="Humidité max." value={moistMax} min={0} max={100} onChange={setMoistMax} unit="%" />
-          </div>
-          <div className="row">
-            <NumberField label="Engrais min." value={ecMin} min={0} max={10000} onChange={setEcMin} unit="µS/cm" />
-            <NumberField label="Engrais max." value={ecMax} min={0} max={10000} onChange={setEcMax} unit="µS/cm" />
-          </div>
-          <NumberField label="Lumière min." value={lightMin} min={0} max={200000} onChange={setLightMin} unit="lux" />
-          <span className="hint">Ils serviront dès qu'un capteur sera associé à cette plante.</span>
-        </div>
-      </details>
+      <PlantFields values={values} onChange={setValues} />
 
       {error && (
         <p className="error" role="alert">
@@ -317,46 +258,12 @@ function Details(props: {
         <button type="button" className="btn ghost grow" onClick={props.onBack}>
           Retour
         </button>
-        <button className="btn primary grow" disabled={busy || !name.trim()}>
+        <button className="btn primary grow" disabled={busy || !values.name.trim()}>
           {busy ? 'Ajout…' : 'Ajouter'}
         </button>
       </div>
     </form>
   )
-}
-
-function NumberField(props: {
-  label: string
-  value: number | ''
-  min: number
-  max: number
-  unit: string
-  onChange: (v: number | '') => void
-}) {
-  return (
-    <label className="field grow">
-      <span className="small muted">{props.label}</span>
-      <span className="with-unit">
-        <input
-          type="number"
-          inputMode="numeric"
-          min={props.min}
-          max={props.max}
-          value={props.value}
-          onChange={(e) => props.onChange(e.target.value === '' ? '' : Number(e.target.value))}
-        />
-        <span className="unit">{props.unit}</span>
-      </span>
-    </label>
-  )
-}
-
-function summarizeThresholds(mMin: number | '', mMax: number | '', eMin: number | '', eMax: number | '', lux: number | '') {
-  const parts: string[] = []
-  if (mMin !== '' || mMax !== '') parts.push(`humidité ${mMin === '' ? '?' : mMin}–${mMax === '' ? '?' : mMax} %`)
-  if (eMin !== '' || eMax !== '') parts.push(`engrais ${eMin === '' ? '?' : eMin}–${eMax === '' ? '?' : eMax}`)
-  if (lux !== '') parts.push(`≥ ${lux} lux`)
-  return parts.length ? parts.join(' · ') : 'non renseignés'
 }
 
 /** Nom affiché : le nom courant s'il existe (avec majuscule), sinon le nom scientifique. */

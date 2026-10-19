@@ -6,6 +6,7 @@ import { useGarden } from './lib/useGarden'
 import { AddPlant } from './screens/AddPlant'
 import { Home } from './screens/Home'
 import { Login } from './screens/Login'
+import { PlantSheet } from './screens/PlantSheet'
 import { Settings, Soon } from './screens/Settings'
 
 type Tab = 'plants' | 'plan' | 'settings'
@@ -36,6 +37,7 @@ function Garden({ session }: { session: Session }) {
   const garden = useGarden()
   const [tab, setTab] = useState<Tab>('plants')
   const [adding, setAdding] = useState(false)
+  const [openPlant, setOpenPlant] = useState<Plant | null>(null)
   const [toast, setToast] = useState<{ text: string; eventId: string | null } | null>(null)
   const toastTimer = useRef<number | undefined>(undefined)
 
@@ -56,7 +58,13 @@ function Garden({ session }: { session: Session }) {
   return (
     <div className="app">
       {tab === 'plants' && (
-        <Home garden={garden} firstName={firstName} onAdd={() => setAdding(true)} onWater={handleWater} />
+        <Home
+          garden={garden}
+          firstName={firstName}
+          onAdd={() => setAdding(true)}
+          onWater={handleWater}
+          onOpen={setOpenPlant}
+        />
       )}
       {tab === 'plan' && (
         <Soon title="Plan" text="Bientôt : le plan de ton appartement, avec une pastille par plante." />
@@ -78,6 +86,18 @@ function Garden({ session }: { session: Session }) {
             </button>
           )}
         </div>
+      )}
+
+      {openPlant && (
+        <PlantSheet
+          plant={openPlant}
+          garden={garden}
+          onClose={() => setOpenPlant(null)}
+          onDone={(message) => {
+            setOpenPlant(null)
+            showToast(message, null)
+          }}
+        />
       )}
 
       {adding && (

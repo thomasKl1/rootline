@@ -10,9 +10,10 @@ type Props = {
   firstName: string | null
   onAdd: () => void
   onWater: (plant: Plant) => void
+  onOpen: (plant: Plant) => void
 }
 
-export function Home({ garden, firstName, onAdd, onWater }: Props) {
+export function Home({ garden, firstName, onAdd, onWater, onOpen }: Props) {
   const today = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
 
   const rows: Row[] = garden.plants.map((plant) => ({
@@ -70,11 +71,13 @@ export function Home({ garden, firstName, onAdd, onWater }: Props) {
               <ul className="compact-list">
                 {list.map(({ plant, status }) => (
                   <li key={plant.id}>
-                    <span className="name">{plant.name}</span>
-                    <span className="muted">
-                      {plant.room ? `${plant.room} · ` : ''}
-                      {status.short}
-                    </span>
+                    <button type="button" className="list-row" onClick={() => onOpen(plant)}>
+                      <span className="name">{plant.name}</span>
+                      <span className="muted">
+                        {plant.room ? `${plant.room} · ` : ''}
+                        {status.short}
+                      </span>
+                    </button>
                   </li>
                 ))}
               </ul>
@@ -86,6 +89,7 @@ export function Home({ garden, firstName, onAdd, onWater }: Props) {
                   status={status}
                   photoUrl={garden.photoUrls.get(plant.id)}
                   onWater={() => onWater(plant)}
+                  onOpen={() => onOpen(plant)}
                 />
               ))
             )}
@@ -96,37 +100,45 @@ export function Home({ garden, firstName, onAdd, onWater }: Props) {
   )
 }
 
-function PlantCard(props: { plant: Plant; status: PlantStatus; photoUrl: string | undefined; onWater: () => void }) {
-  const { plant, status, photoUrl, onWater } = props
+function PlantCard(props: {
+  plant: Plant
+  status: PlantStatus
+  photoUrl: string | undefined
+  onWater: () => void
+  onOpen: () => void
+}) {
+  const { plant, status, photoUrl, onWater, onOpen } = props
   const u = status.urgency
   return (
     <article className="card plant-card">
-      {photoUrl ? (
-        <img className="thumb" src={photoUrl} alt="" loading="lazy" />
-      ) : (
-        <div className="thumb" aria-hidden="true">
-          {plant.name.slice(0, 1).toUpperCase()}
-        </div>
-      )}
-      <div className="plant-body">
-        <div className="plant-head">
-          <span className="name">{plant.name}</span>
-          {plant.room && <span className="muted small">{plant.room}</span>}
-        </div>
-        {status.moisture != null && (
-          <div
-            className="meter"
-            role="meter"
-            aria-label="Humidité du sol"
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={status.moisture}
-          >
-            <div className={`meter-fill tone-bg-${u}`} style={{ width: `${status.moisture}%` }} />
-          </div>
+      <button type="button" className="card-main" onClick={onOpen}>
+        {photoUrl ? (
+          <img className="thumb" src={photoUrl} alt="" loading="lazy" />
+        ) : (
+          <span className="thumb" aria-hidden="true">
+            {plant.name.slice(0, 1).toUpperCase()}
+          </span>
         )}
-        <span className={`small tone-${u}`}>{status.detail}</span>
-      </div>
+        <span className="plant-body">
+          <span className="plant-head">
+            <span className="name">{plant.name}</span>
+            {plant.room && <span className="muted small">{plant.room}</span>}
+          </span>
+          {status.moisture != null && (
+            <span
+              className="meter"
+              role="meter"
+              aria-label="Humidité du sol"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={status.moisture}
+            >
+              <span className={`meter-fill tone-bg-${u}`} style={{ width: `${status.moisture}%` }} />
+            </span>
+          )}
+          <span className={`small tone-${u}`}>{status.detail}</span>
+        </span>
+      </button>
       {status.manual && (
         <button className="btn primary pill" onClick={onWater}>
           Arrosée

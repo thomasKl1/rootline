@@ -145,6 +145,28 @@ export function useGarden() {
     [state.householdId, load],
   )
 
+  const updatePlant = useCallback(
+    async (id: string, fields: Partial<NewPlant>) => {
+      const { error } = await supabase.from('plants').update(fields).eq('id', id)
+      if (error) return error.message
+      await load()
+      return null
+    },
+    [load],
+  )
+
+  /** Supprime la plante, son historique (en cascade dans la base) et sa photo. */
+  const deletePlant = useCallback(
+    async (plant: Plant) => {
+      const { error } = await supabase.from('plants').delete().eq('id', plant.id)
+      if (error) return error.message
+      if (plant.photo_path) await supabase.storage.from(PHOTO_BUCKET).remove([plant.photo_path])
+      await load()
+      return null
+    },
+    [load],
+  )
+
   /** Enregistre un arrosage manuel ; renvoie l'id de l'événement pour pouvoir l'annuler. */
   const water = useCallback(
     async (plant: Plant) => {
@@ -168,5 +190,5 @@ export function useGarden() {
     [load],
   )
 
-  return { ...state, reload: load, addPlant, water, undoEvent }
+  return { ...state, reload: load, addPlant, updatePlant, deletePlant, water, undoEvent }
 }

@@ -573,3 +573,61 @@ label.btn {
   font-weight: 600;
   cursor: pointer;
 }
+
+/* --- Fiche plante ------------------------------------------------------------ */
+.card-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 0;
+  border: none;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 12px;
+}
+.card-main:focus-visible,
+.list-row:focus-visible {
+  outline: 3px solid rgba(47, 107, 71, 0.35);
+  outline-offset: 2px;
+}
+.meter-fill {
+  display: block;
+}
+.compact-list li {
+  padding: 0;
+}
+.list-row {
+  width: 100%;
+  min-height: 48px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border: none;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+.sheet-photo {
+  width: 100%;
+  height: 200px;
+  object-fit: cover;
+  border-radius: 16px;
+}
+.care-refresh {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.btn.danger {
+  background: transparent;
+  color: var(--late);
+  border: 1.5px solid rgba(163, 71, 35, 0.35);
+}
+.meter {
+  display: block;
+}

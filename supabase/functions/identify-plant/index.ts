@@ -2,6 +2,8 @@
 //
 // POST { image: "<jpeg en base64>" }  → identification Pl@ntNet, puis seuils Open Plantbook
 // POST { query: "monstera" }          → recherche par nom dans Open Plantbook
+// POST { species: "Goeppertia roseopicta", commonName?: "calathea" }
+//                                     → besoins d'une espèce déjà connue (recalcul)
 //
 // Réponse : { candidates: Candidate[], remaining?: number }
 //
@@ -14,8 +16,11 @@ import {
   type Candidate,
   careFromDetail,
   fromPlantnet,
-  pickPlantbookMatch,
+  genusVariants,
+  pickForStep,
   type PlantbookDetail,
+  type PlantnetMatch,
+  searchPlan,
 } from './care.ts'
 
 const PLANTNET_URL = 'https://my-api.plantnet.org/v2/identify/all'
@@ -86,16 +91,24 @@ async function plantbookDetail(pid: string): Promise<PlantbookDetail | null> {
   return (await plantbookGet(`/plant/detail/${encodeURIComponent(pid)}/`)) as PlantbookDetail | null
 }
 
-/** Seuils pour une espèce : recherche puis fiche détaillée ; valeurs par défaut si introuvable. */
-async function careFor(scientificName: string) {
+/**
+ * Seuils pour une espèce. On cherche du plus précis au plus approximatif : nom exact,
+ * anciens noms botaniques, noms courants, puis le genre seul. Valeurs par défaut si rien.
+ */
+async function careFor(scientificName: string, genus: string | null = null, commonNames: string[] = []) {
+  const variants = genusVariants(scientificName, genus)
   try {
-    const results = await plantbookSearch(scientificName)
-    const pid = pickPlantbookMatch(scientificName, results)
-    return careFromDetail(pid ? await plantbookDetail(pid) : null)
+    for (const step of searchPlan(scientificName, genus, commonNames)) {
+      const pid = pickForStep(step, await plantbookSearch(step.term), variants)
+      if (!pid) continue
+      const detail = await plantbookDetail(pid)
+      if (detail) return careFromDetail(detail, step.kind)
+    }
   } catch (e) {
     console.error('Open Plantbook', scientificName, e)
-    return careFromDetail(null)
   }
+  console.log('Open Plantbook : aucune correspondance pour', scientificName)
+  return careFromDetail(null)
 }
 
 // --- Pl@ntNet -------------------------------------------------------------------
@@ -127,11 +140,14 @@ async function identify(imageBase64: string): Promise<Response> {
   const data = await res.json()
   const base = ((data.results ?? []) as Parameters<typeof fromPlantnet>[0][])
     .map(fromPlantnet)
-    .filter((c): c is Omit<Candidate, 'care'> => c !== null)
+    .filter((c): c is PlantnetMatch => c !== null)
     .slice(0, MAX_CANDIDATES)
 
   const candidates: Candidate[] = await Promise.all(
-    base.map(async (c) => ({ ...c, care: await careFor(c.scientificName) })),
+    base.map(async ({ genus, commonNames, ...c }) => ({
+      ...c,
+      care: await careFor(c.scientificName, genus, commonNames),
+    })),
   )
   return json({ candidates, remaining: data.remainingIdentificationRequests ?? null })
 }
@@ -154,13 +170,22 @@ async function search(query: string): Promise<Response> {
   return json({ candidates })
 }
 
+// --- Besoins d'une espèce déjà connue ------------------------------------------------
+
+async function careForSpecies(species: string, commonName: string | null): Promise<Response> {
+  const name = species.trim()
+  if (!name) return json({ candidates: [] })
+  const care = await careFor(name, null, commonName ? [commonName] : [])
+  return json({ candidates: [{ scientificName: name, commonName, family: null, score: null, care }] })
+}
+
 // --- Point d'entrée --------------------------------------------------------------
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
   if (req.method !== 'POST') return json({ error: 'Méthode non autorisée.' }, 405)
 
-  let body: { image?: string; query?: string }
+  let body: { image?: string; query?: string; species?: string; commonName?: string | null }
   try {
     body = await req.json()
   } catch {
@@ -170,6 +195,7 @@ Deno.serve(async (req) => {
   try {
     if (typeof body.image === 'string') return await identify(body.image)
     if (typeof body.query === 'string') return await search(body.query)
+    if (typeof body.species === 'string') return await careForSpecies(body.species, body.commonName ?? null)
     return json({ error: 'Envoie une image ou un nom de plante.' }, 400)
   } catch (e) {
     console.error(e)
