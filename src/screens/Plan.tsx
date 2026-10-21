@@ -57,8 +57,19 @@ function PlanView({ plan, garden, onOpen, onToast }: Props & { plan: FloorPlan }
   const [scale, setScale] = useState(1) // pixels d'écran par unité du plan
   const [editing, setEditing] = useState(false)
   const [selectedRoom, setSelectedRoom] = useState<string | null>(null)
-  const [armed, setArmed] = useState<string | null>(null) // plante à poser (choisie dans la liste)
+  // Plante à poser : choisie dans la liste, ou pastille touchée sans la faire glisser.
+  const [armed, setArmed] = useState<string | null>(null)
   const [drag, setDrag] = useState<{ id: string; at: Point; moved: boolean } | null>(null)
+  // État du glisser lu par les gestionnaires natifs et la boucle de défilement (sans attendre un rendu).
+  const dragRef = useRef<{
+    id: string
+    offset: Point
+    start: [number, number]
+    last: [number, number]
+    moved: boolean
+    at: Point
+    raf: number
+  } | null>(null)
   // Positions déjà déplacées mais pas encore rechargées depuis la base.
   const [pending, setPending] = useState<Map<string, Point>>(new Map())
 
@@ -82,6 +93,21 @@ function PlanView({ plan, garden, onOpen, onToast }: Props & { plan: FloorPlan }
     ro.observe(svg)
     return () => ro.disconnect()
   }, [DW])
+
+  // Au doigt, le navigateur prendrait le glisser d'une pastille pour un défilement de la page
+  // (touch-action n'agit pas sur les éléments d'un SVG) : on bloque le défilement quand le
+  // toucher commence sur une pastille, en mode placement seulement.
+  useEffect(() => {
+    const svg = svgRef.current
+    if (!svg || !editing) return
+    const block = (e: TouchEvent) => {
+      if ((e.target as Element | null)?.closest?.('.pin')) e.preventDefault()
+    }
+    svg.addEventListener('touchstart', block, { passive: false })
+    return () => svg.removeEventListener('touchstart', block)
+  }, [editing])
+
+  useEffect(() => () => cancelAnimationFrame(dragRef.current?.raf ?? 0), [])
 
   // Quand la base a été rechargée, les positions en attente ne servent plus.
   useEffect(() => setPending(new Map()), [garden.plants])
@@ -140,27 +166,79 @@ function PlanView({ plan, garden, onOpen, onToast }: Props & { plan: FloorPlan }
     }
   }
 
+  /** Position de la pastille sous le doigt, en gardant l'écart du moment où on l'a saisie. */
+  function dragPoint(d: NonNullable<typeof dragRef.current>): Point | null {
+    const pt = pointer({ clientX: d.last[0], clientY: d.last[1] })
+    if (!pt) return null
+    return [Math.max(0, Math.min(DW, pt[0] + d.offset[0])), Math.max(0, Math.min(DH, pt[1] + d.offset[1]))]
+  }
+
+  /** Fait défiler la page quand le doigt approche du haut ou du bas de l'écran. */
+  function autoScroll() {
+    const d = dragRef.current
+    if (!d) return
+    const y = d.last[1]
+    const top = 80
+    const bottom = window.innerHeight - 130 // la barre d'onglets
+    const speed = y < top ? -Math.min(18, (top - y) / 3 + 4) : y > bottom ? Math.min(18, (y - bottom) / 3 + 4) : 0
+    if (speed && d.moved) {
+      window.scrollBy(0, speed)
+      const at = dragPoint(d)
+      if (at) {
+        d.at = at
+        setDrag({ id: d.id, at, moved: true })
+      }
+    }
+    d.raf = requestAnimationFrame(autoScroll)
+  }
+
   function onPinDown(e: ReactPointerEvent, plant: Plant) {
-    if (!editing) return
+    if (!editing || dragRef.current) return
     e.stopPropagation()
-    const at = pointer(e)
-    if (!at) return
+    const pt = pointer(e)
+    const center = positionOf(plant)
+    if (!pt || !center) return
     ;(e.currentTarget as Element).setPointerCapture(e.pointerId)
-    setArmed(null)
-    setDrag({ id: plant.id, at: positionOf(plant) ?? at, moved: false })
+    dragRef.current = {
+      id: plant.id,
+      offset: [center[0] - pt[0], center[1] - pt[1]],
+      start: [e.clientX, e.clientY],
+      last: [e.clientX, e.clientY],
+      moved: false,
+      at: center,
+      raf: requestAnimationFrame(autoScroll),
+    }
+    setDrag({ id: plant.id, at: center, moved: false })
   }
 
   function onPinMove(e: ReactPointerEvent) {
-    if (!drag) return
-    const at = pointer(e)
-    if (at) setDrag({ ...drag, at, moved: true })
+    const d = dragRef.current
+    if (!d) return
+    d.last = [e.clientX, e.clientY]
+    // Moins de 8 px : c'est un toucher, pas un glisser.
+    if (!d.moved && Math.hypot(e.clientX - d.start[0], e.clientY - d.start[1]) < 8) return
+    d.moved = true
+    const at = dragPoint(d)
+    if (at) {
+      d.at = at
+      setDrag({ id: d.id, at, moved: true })
+    }
   }
 
-  function onPinUp(plant: Plant) {
-    if (!drag) return
-    const { at, moved } = drag
+  function endDrag(plant: Plant, cancelled: boolean) {
+    const d = dragRef.current
+    if (!d) return
+    cancelAnimationFrame(d.raf)
+    dragRef.current = null
     setDrag(null)
-    if (moved) void place(plant, at)
+    if (cancelled) return
+    if (d.moved) {
+      setArmed(null)
+      void place(plant, d.at)
+    } else {
+      // Toucher sans glisser : la plante est choisie, on la pose en touchant le plan.
+      setArmed(armed === plant.id ? null : plant.id)
+    }
   }
 
   function onPlanClick(e: React.MouseEvent) {
@@ -179,12 +257,27 @@ function PlanView({ plan, garden, onOpen, onToast }: Props & { plan: FloorPlan }
   }
 
   const r = PIN_PX / scale
+  // Pièce visée pendant un glisser, affichée en direct.
+  const target = drag?.moved ? roomAt(plan, fromD(drag.at)) : null
+  const targetWindow = target && drag ? nearestWindow(plan, target.name, fromD(drag.at)) : null
+  const armedPlant = garden.plants.find((p) => p.id === armed)
   const roomPlants = selectedRoom ? garden.plants.filter((p) => p.room === selectedRoom) : []
   const orientations = roomOrientations(plan, selectedRoom)
 
   return (
     <>
       <div className={`plan-wrap card${editing ? ' editing' : ''}`}>
+        {editing && (
+          <p className="plan-status" role="status">
+            {drag?.moved
+              ? target
+                ? `${target.name}${targetWindow ? ` · fenêtre ${ORIENTATION_LABEL[targetWindow]}` : ''}`
+                : 'Hors des pièces'
+              : armedPlant
+                ? `Touche l'endroit où poser ${armedPlant.name.split(' ')[0]}`
+                : "Fais glisser une pastille, ou touche-la puis touche sa nouvelle place"}
+          </p>
+        )}
         <svg
           ref={svgRef}
           className="plan"
@@ -207,7 +300,7 @@ function PlanView({ plan, garden, onOpen, onToast }: Props & { plan: FloorPlan }
           {plan.rooms.map((room) => (
             <polygon
               key={room.name}
-              className={`plan-room${room.name === selectedRoom ? ' selected' : ''}`}
+              className={`plan-room${room.name === selectedRoom || room.name === target?.name ? ' selected' : ''}`}
               points={room.points.map((pt) => toD(pt).join(',')).join(' ')}
               strokeWidth={1.5 / scale}
             />
@@ -274,11 +367,11 @@ function PlanView({ plan, garden, onOpen, onToast }: Props & { plan: FloorPlan }
             return (
               <g
                 key={p.id}
-                className={`pin${drag?.id === p.id ? ' dragging' : ''}`}
+                className={`pin${drag?.id === p.id ? ' dragging' : ''}${armed === p.id ? ' armed' : ''}`}
                 onPointerDown={(e) => onPinDown(e, p)}
                 onPointerMove={onPinMove}
-                onPointerUp={() => onPinUp(p)}
-                onPointerCancel={() => setDrag(null)}
+                onPointerUp={() => endDrag(p, false)}
+                onPointerCancel={() => endDrag(p, true)}
                 onClick={(e) => {
                   e.stopPropagation()
                   if (!editing) onOpen(p)
@@ -327,14 +420,15 @@ function PlanView({ plan, garden, onOpen, onToast }: Props & { plan: FloorPlan }
           <div>
             <h2 className="name">Placer les plantes</h2>
             <p className="small muted">
-              Fais glisser une pastille pour la déplacer. La pièce et l'orientation de la fenêtre la plus proche
-              sont mises à jour toutes seules.
+              Fais glisser une pastille, ou touche-la puis touche sa nouvelle place (pratique pour changer de
+              bout de l'appartement). La pièce et l'orientation de la fenêtre la plus proche sont mises à jour
+              toutes seules.
             </p>
           </div>
           {unplaced.length > 0 && (
             <div className="stack tight">
               <p className="small muted">
-                {armed ? "Touche le plan à l'endroit de la plante." : 'Pas encore sur le plan : choisis-en une, puis touche le plan.'}
+                Pas encore sur le plan : choisis-en une, puis touche le plan.
               </p>
               <div className="chips">
                 {unplaced.map((p) => (
