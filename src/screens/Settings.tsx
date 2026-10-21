@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { disablePush, enablePush, getPushState, sendTestPush, type PushState } from '../lib/push'
 import { supabase } from '../lib/supabase'
 import type { useGarden } from '../lib/useGarden'
+import { buildExport, deliverFile, formatSize } from '../lib/export'
 import { PlanImport } from './PlanImport'
 import { SharingCard } from './Sharing'
 
@@ -33,6 +34,8 @@ export function Settings({ email, garden, onToast }: SettingsProps) {
         </div>
         <PlanImport garden={garden} />
       </section>
+
+      <ExportCard garden={garden} />
 
       <section className="card stack pad-card">
         <div>
@@ -137,6 +140,61 @@ function Reminders({ garden }: { garden: Garden }) {
         </>
       )}
 
+      {message && (
+        <p className={message.error ? 'error' : 'hint'} role={message.error ? 'alert' : 'status'}>
+          {message.text}
+        </p>
+      )}
+    </section>
+  )
+}
+
+/** Sauvegarde : l'offre gratuite de Supabase n'en fait pas, alors on en garde une copie chez soi. */
+function ExportCard({ garden }: { garden: Garden }) {
+  const [step, setStep] = useState<string | null>(null)
+  const [file, setFile] = useState<File | null>(null)
+  const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null)
+
+  async function prepare() {
+    if (!garden.householdId) return
+    setMessage(null)
+    setFile(null)
+    try {
+      setFile(await buildExport(garden.householdId, setStep))
+    } catch (e) {
+      setMessage({ text: e instanceof Error ? e.message : String(e), error: true })
+    }
+    setStep(null)
+  }
+
+  async function save() {
+    if (!file) return
+    // Deuxième geste de l'utilisateur : le navigateur autorise alors le téléchargement ou le partage.
+    const result = await deliverFile(file)
+    if (result !== 'cancelled') {
+      setFile(null)
+      setMessage({ text: result === 'shared' ? 'Fichier transmis.' : `Fichier enregistré : ${file.name}`, error: false })
+    }
+  }
+
+  return (
+    <section className="card stack pad-card">
+      <div>
+        <h2 className="name">Exporter mes données</h2>
+        <p className="small muted">
+          Un fichier avec tout le suivi : plantes et photos, arrosages, engrais, notes, mesures des capteurs et
+          plan. L'offre gratuite de Supabase ne fait pas de sauvegarde : garde-en une copie de temps en temps.
+        </p>
+      </div>
+      {file ? (
+        <button type="button" className="btn primary" onClick={save}>
+          Enregistrer le fichier ({formatSize(file.size)})
+        </button>
+      ) : (
+        <button type="button" className="btn ghost" onClick={prepare} disabled={step !== null || !garden.householdId}>
+          {step ?? 'Préparer l’export'}
+        </button>
+      )}
       {message && (
         <p className={message.error ? 'error' : 'hint'} role={message.error ? 'alert' : 'status'}>
           {message.text}
