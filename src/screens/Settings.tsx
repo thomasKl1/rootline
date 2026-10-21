@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ChangeEvent } from 'react'
 import { disablePush, enablePush, getPushState, sendTestPush, type PushState } from '../lib/push'
 import { supabase } from '../lib/supabase'
 import type { useGarden } from '../lib/useGarden'
-import { buildExport, deliverFile, formatSize } from '../lib/export'
+import { plural } from '../lib/status'
+import { buildExport, deliverFile, formatSize, importBackup, readBackup, type Backup } from '../lib/export'
 import { PlanImport } from './PlanImport'
 import { SharingCard } from './Sharing'
 
@@ -154,6 +155,43 @@ function ExportCard({ garden }: { garden: Garden }) {
   const [step, setStep] = useState<string | null>(null)
   const [file, setFile] = useState<File | null>(null)
   const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null)
+  const [backup, setBackup] = useState<Backup | null>(null)
+
+  async function pick(e: ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0]
+    e.target.value = ''
+    if (!f) return
+    setMessage(null)
+    try {
+      setBackup(await readBackup(f))
+    } catch (err) {
+      setMessage({ text: err instanceof Error ? err.message : String(err), error: true })
+    }
+  }
+
+  async function restore() {
+    if (!backup || !garden.householdId) return
+    const b = backup
+    setBackup(null)
+    try {
+      const r = await importBackup(garden.householdId, b, setStep)
+      await garden.reload()
+      const parts = [
+        r.plants && plural(r.plants, 'plante'),
+        r.events && plural(r.events, 'événement'),
+        r.readings && plural(r.readings, 'mesure'),
+        r.photos && plural(r.photos, 'photo'),
+        r.plan && 'le plan',
+      ].filter(Boolean)
+      setMessage({
+        text: parts.length ? `Restauré : ${parts.join(', ')}.` : 'Rien à ajouter : tout était déjà là.',
+        error: false,
+      })
+    } catch (err) {
+      setMessage({ text: err instanceof Error ? err.message : String(err), error: true })
+    }
+    setStep(null)
+  }
 
   async function prepare() {
     if (!garden.householdId) return
@@ -180,10 +218,11 @@ function ExportCard({ garden }: { garden: Garden }) {
   return (
     <section className="card stack pad-card">
       <div>
-        <h2 className="name">Exporter mes données</h2>
+        <h2 className="name">Sauvegarde</h2>
         <p className="small muted">
           Un fichier avec tout le suivi : plantes et photos, arrosages, engrais, notes, mesures des capteurs et
-          plan. L'offre gratuite de Supabase ne fait pas de sauvegarde : garde-en une copie de temps en temps.
+          plan. L'offre gratuite de Supabase ne fait pas de sauvegarde : garde-en une copie de temps en temps. La
+          restauration ajoute ce qui manque sans rien écraser.
         </p>
       </div>
       {file ? (
@@ -192,8 +231,34 @@ function ExportCard({ garden }: { garden: Garden }) {
         </button>
       ) : (
         <button type="button" className="btn ghost" onClick={prepare} disabled={step !== null || !garden.householdId}>
-          {step ?? 'Préparer l’export'}
+          {step ?? 'Exporter mes données'}
         </button>
+      )}
+      <label className={`btn ghost center${step !== null ? ' disabled' : ''}`}>
+        <input type="file" accept="application/json,.json" className="visually-hidden" onChange={pick} disabled={step !== null} />
+        Restaurer une sauvegarde
+      </label>
+      {backup && (
+        <div className="dialog-backdrop" onClick={() => setBackup(null)}>
+          <div className="dialog" role="dialog" aria-modal="true" aria-labelledby="restore-title" onClick={(e) => e.stopPropagation()}>
+            <h2 id="restore-title" className="display small">
+              Restaurer cette sauvegarde ?
+            </h2>
+            <p className="muted">
+              Sauvegarde du {new Date(backup.exported_at).toLocaleDateString('fr-FR')} : {plural(backup.plants.length, 'plante')},{' '}
+              {plural(backup.events.length, 'événement')}, {plural(backup.readings.length, 'mesure')}.
+            </p>
+            <p className="muted">Seul ce qui manque est ajouté : rien de ce qui existe déjà n'est modifié.</p>
+            <div className="row">
+              <button type="button" className="btn ghost grow" onClick={() => setBackup(null)} autoFocus>
+                Annuler
+              </button>
+              <button type="button" className="btn primary grow" onClick={() => void restore()}>
+                Restaurer
+              </button>
+            </div>
+          </div>
+        </div>
       )}
       {message && (
         <p className={message.error ? 'error' : 'hint'} role={message.error ? 'alert' : 'status'}>

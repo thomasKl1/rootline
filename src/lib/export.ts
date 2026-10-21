@@ -111,3 +111,88 @@ export async function deliverFile(file: File): Promise<'shared' | 'downloaded' |
 export function formatSize(bytes: number) {
   return bytes < 1_000_000 ? `${Math.max(1, Math.round(bytes / 1000))} ko` : `${(bytes / 1_000_000).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} Mo`
 }
+
+// ---------------------------------------------------------------------------
+// Restauration d'une sauvegarde
+// ---------------------------------------------------------------------------
+
+type BackupPlant = { id: string; name: string; photo: string | null }
+export type Backup = {
+  format: 'rootline-export'
+  exported_at: string
+  household: { floor_plan: unknown } | null
+  plants: BackupPlant[]
+  events: unknown[]
+  readings: unknown[]
+}
+
+/** Lit et vérifie un fichier de sauvegarde ; lève une erreur en français s'il ne convient pas. */
+export async function readBackup(file: File): Promise<Backup> {
+  let data: Partial<Backup>
+  try {
+    data = JSON.parse(await file.text())
+  } catch {
+    throw new Error("Ce fichier n'est pas un JSON valide.")
+  }
+  if (data?.format !== 'rootline-export') throw new Error("Ce fichier n'est pas une sauvegarde Rootline.")
+  if (!Array.isArray(data.plants) || !Array.isArray(data.events) || !Array.isArray(data.readings))
+    throw new Error('Sauvegarde incomplète : plantes, événements ou mesures manquants.')
+  return data as Backup
+}
+
+export type ImportResult = { plants: number; events: number; readings: number; photos: number; plan: boolean }
+
+const READINGS_CHUNK = 2000
+
+function dataUrlToBlob(url: string): Blob {
+  const [head, body] = url.split(',')
+  const mime = /data:([^;]+)/.exec(head)?.[1] ?? 'image/jpeg'
+  const bin = atob(body)
+  const bytes = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+  return new Blob([bytes], { type: mime })
+}
+
+/** Ajoute au foyer ce qui manque d'une sauvegarde, sans rien écraser. */
+export async function importBackup(householdId: string, backup: Backup, progress: ExportProgress): Promise<ImportResult> {
+  progress('Plantes et historique…')
+  // Les photos voyagent à part : on ne les envoie pas à la base.
+  const plants = backup.plants.map(({ photo: _photo, ...rest }) => rest)
+  const { data, error } = await supabase.rpc('import_backup', {
+    p_household: householdId,
+    p_data: { format: backup.format, household: backup.household, plants, events: backup.events },
+  })
+  if (error) throw new Error(error.message.includes('not_allowed') ? "Tu n'as pas accès à ce foyer." : error.message)
+  const created = (data?.created ?? {}) as Record<string, string>
+
+  let readings = 0
+  for (let i = 0; i < backup.readings.length; i += READINGS_CHUNK) {
+    progress(`Mesures… ${Math.round((i / backup.readings.length) * 100)} %`)
+    const { data: n, error: e } = await supabase.rpc('import_readings', {
+      p_household: householdId,
+      p_rows: backup.readings.slice(i, i + READINGS_CHUNK),
+    })
+    if (e) throw new Error(e.message)
+    readings += (n as number) ?? 0
+  }
+
+  progress('Photos…')
+  let photos = 0
+  for (const p of backup.plants) {
+    const newId = created[p.id]
+    if (!newId || !p.photo) continue
+    const path = `${householdId}/${newId}.jpg`
+    const up = await supabase.storage.from('plant-photos').upload(path, dataUrlToBlob(p.photo), { upsert: true, contentType: 'image/jpeg' })
+    if (up.error) continue // la plante est là ; seule sa photo manque
+    await supabase.from('plants').update({ photo_path: path }).eq('id', newId)
+    photos++
+  }
+
+  return {
+    plants: Object.keys(created).length,
+    events: (data?.events_added as number) ?? 0,
+    readings,
+    photos,
+    plan: data?.plan_restored === true,
+  }
+}

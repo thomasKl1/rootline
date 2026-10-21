@@ -104,7 +104,7 @@ Supabase met en pause un projet gratuit qui n'a pas d'activité pendant 7 jours 
 
 GitHub désactive les workflows planifiés d'un dépôt public après 60 jours sans commit (il prévient par e-mail) : dans ce cas, réactive-le dans l'onglet **Actions**.
 
-L'offre gratuite ne comprend pas de sauvegarde automatique de la base : **Réglages > Exporter mes données** télécharge un fichier JSON avec tout le suivi (foyer et plan, plantes et photos, arrosages, engrais, notes, mesures). Garde-en une copie de temps en temps.
+L'offre gratuite ne comprend pas de sauvegarde automatique de la base : **Réglages > Exporter mes données** télécharge un fichier JSON avec tout le suivi (foyer et plan, plantes et photos, arrosages, engrais, notes, mesures). Garde-en une copie de temps en temps. **Restaurer une sauvegarde** ajoute ce qui manque (plantes supprimées avec leur photo et leur historique, mesures, plan si le foyer n'en a pas) sans rien écraser ; on peut réimporter le même fichier sans créer de doublons.
 
 ## Sécurité
 
