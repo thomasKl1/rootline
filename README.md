@@ -68,11 +68,13 @@ Chaque fiche plante indique l'engrais à utiliser (plantes vertes, plantes fleur
 
 Dans la fiche d'une plante, **Santé > Un souci ? Demander un diagnostic** : une photo et/ou une question. La fiche de la plante (espèce, emplacement, arrosages, engrais, mesures) est jointe automatiquement.
 
-- **Analyser** : la fonction [`diagnose`](supabase/functions/diagnose/index.ts) demande d'abord à Pl@ntNet les maladies probables sur la photo, puis fait répondre un modèle de [Mistral](https://console.mistral.ai) qui lit les images (offre gratuite « Experiment » : les requêtes peuvent servir à entraîner leurs modèles). La réponse est gardée dans l'historique de la plante.
+- **Analyser** : la fonction [`diagnose`](supabase/functions/diagnose/index.ts) demande d'abord à Pl@ntNet les maladies probables sur la photo, puis fait répondre un modèle qui lit les images, via [GitHub Models](https://docs.github.com/en/github-models) (gratuit, environ 150 demandes par jour). La réponse est gardée dans l'historique de la plante.
 - **Demander à Claude** : envoie la photo et le même message à l'app Claude par la feuille de partage du téléphone (ou ouvre claude.ai avec la question pré-remplie).
 
-Pour l'activer sur ta propre instance : crée une clé sur console.mistral.ai, ajoute-la dans **Edge Functions > Secrets** sous le nom `MISTRAL_API_KEY`, puis déploie la fonction :
+Pour l'activer sur ta propre instance : sur GitHub, **Settings > Developer settings > Personal access tokens > Fine-grained tokens**, crée un jeton avec la seule permission **Models : lecture**. Ajoute-le dans Supabase, **Edge Functions > Secrets**, sous le nom `GITHUB_MODELS_TOKEN`, puis déploie la fonction :
 `npx supabase functions deploy diagnose --project-ref <ton-projet>`
+
+La fonction sait aussi utiliser Mistral (`MISTRAL_API_KEY`), dont l'API est désormais réservée aux offres payantes.
 
 ## Partager avec la maison
 

@@ -1,4 +1,4 @@
-// Tests de la fonction diagnose, sans réseau : Pl@ntNet et Mistral sont simulés.
+// Tests de la fonction diagnose, sans réseau : Pl@ntNet, Mistral et GitHub Models sont simulés.
 // Lancer : deno test -A supabase/functions/diagnose/index.test.ts
 
 import { mistralAnswer, mistralError, parseDiseases, userText } from './prompt.ts'
@@ -36,6 +36,13 @@ globalThis.fetch = async (input: any, init?: any) => {
         { name: 'ERYSPP', description: 'Oïdium', score: 0.2 },
       ],
     })
+  }
+  if (url.includes('models.github.ai')) {
+    lastMistralBody = JSON.parse(init.body)
+    calls.push(`github:${lastMistralBody.model}`)
+    const status = mistralStatus[lastMistralBody.model] ?? 200
+    if (status !== 200) return new Response('{"error":{"code":"RateLimitReached","message":"Rate limit of 50 per 86400s exceeded"}}', { status })
+    return Response.json({ choices: [{ message: { role: 'assistant', content: '**Ce que je vois** : un oïdium.' } }] })
   }
   if (url.includes('mistral')) {
     lastMistralBody = JSON.parse(init.body)
@@ -109,4 +116,31 @@ Deno.test('logique pure', () => {
   assertEquals(mistralAnswer({}), null)
   assertEquals(mistralError('{"message":"Service tier capacity exceeded"}'), 'Service tier capacity exceeded')
   assertEquals(mistralError(''), null)
+})
+
+Deno.test('GitHub Models prioritaire quand son jeton est présent', async () => {
+  Deno.env.set('GITHUB_MODELS_TOKEN', 'g')
+  try {
+    calls.length = 0
+    mistralStatus = {}
+    const { status, body } = await post({ context: 'Plante : Monstera', question: 'Taches blanches ?', image: btoa('jpeg') })
+    assertEquals(status, 200)
+    assertEquals(calls, ['plantnet', 'github:openai/gpt-4.1-mini'])
+    assertEquals(body.answer, '**Ce que je vois** : un oïdium.')
+    // Format OpenAI : l'image est un objet { url }.
+    assertEquals(lastMistralBody.messages[1].content[1].image_url.url.startsWith('data:image/jpeg;base64,'), true)
+
+    calls.length = 0
+    mistralStatus = { 'openai/gpt-4.1-mini': 429 }
+    const r = await post({ context: '', question: 'Aide' })
+    assertEquals(r.body.model, 'openai/gpt-4o-mini')
+
+    mistralStatus = { 'openai/gpt-4.1-mini': 429, 'openai/gpt-4o-mini': 429 }
+    const e = await post({ context: '', question: 'Aide' })
+    assertEquals(e.status, 429)
+    assert(e.body.error.includes('Rate limit of 50 per 86400s exceeded'), e.body.error)
+  } finally {
+    Deno.env.delete('GITHUB_MODELS_TOKEN')
+    mistralStatus = {}
+  }
 })
