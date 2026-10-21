@@ -1094,3 +1094,72 @@ label.btn.disabled {
 section.card .small {
   margin: 0;
 }
+
+/* --- Diagnostic ---------------------------------------------------------- */
+.diag-dialog {
+  max-width: 440px;
+  max-height: 90dvh;
+  overflow-y: auto;
+}
+.small-drop {
+  min-height: 120px;
+}
+.diag-photo {
+  width: 100%;
+  max-height: 240px;
+  object-fit: cover;
+  border-radius: 14px;
+}
+.answer {
+  font-size: 15px;
+  line-height: 1.5;
+}
+.answer p {
+  margin: 0 0 8px;
+}
+.answer ul,
+.diseases ul {
+  margin: 0 0 8px;
+  padding-left: 20px;
+}
+.answer li {
+  margin-bottom: 4px;
+}
+.diag-list {
+  padding: 0;
+}
+.diag-item {
+  flex-direction: column;
+  align-items: stretch !important;
+  padding: 0 14px;
+}
+.diag-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 56px;
+  width: 100%;
+  padding: 8px 0;
+  border: none;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+.diag-head > .grow {
+  display: flex;
+  flex-direction: column;
+}
+.diag-q {
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.diag-body {
+  padding-bottom: 14px;
+}
+.diseases p {
+  margin: 0;
+}

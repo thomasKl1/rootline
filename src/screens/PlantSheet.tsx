@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { buildContext } from '../lib/diagnose'
 import { usePlantHistory } from '../lib/history'
 import { careForSpecies, type Care } from '../lib/identify'
 import { ORIENTATION_LABEL, roomOrientations } from '../lib/plan'
@@ -7,6 +8,7 @@ import type { EventKind, Plant } from '../lib/types'
 import { fertilizerFor, type PlantUpdate, type useGarden } from '../lib/useGarden'
 import { ConfirmDialog } from './ConfirmDialog'
 import { Curves } from './Curves'
+import { HealthSection } from './Diagnose'
 import { FertilizerCard } from './Fertilizer'
 import { History } from './History'
 import { applyCare, careOrigin, PlantFields, toPlantFields, valuesFromPlant, type PlantFormValues } from './PlantForm'
@@ -164,6 +166,19 @@ export function PlantSheet({ plant: initialPlant, garden, onClose, onDone, onToa
         )}
 
         <FertilizerCard plant={plant} garden={garden} status={fertilizerFor(garden, plant)} />
+
+        <HealthSection
+          plant={plant}
+          context={() =>
+            buildContext({
+              plant,
+              events: history.events,
+              reading: plant.sensor_mac ? garden.latestReading.get(plant.sensor_mac) : undefined,
+              lastWatered,
+              lastFertilized: garden.lastFertilized.get(plant.id),
+            })
+          }
+        />
 
         {plant.sensor_mac && !history.loading && (
           <Curves plant={plant} readings={history.readings} events={history.events} />

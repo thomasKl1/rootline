@@ -64,6 +64,16 @@ npm run dev                  # http://localhost:5173
 
 Chaque fiche plante indique l'engrais à utiliser (plantes vertes, plantes fleuries, cactus, orchidées, terre acide…), la dose et le rythme pendant la belle saison. La catégorie est déduite du genre botanique donné par Pl@ntNet (règles générales de jardinage, dans [`fertilizer.ts`](supabase/functions/notifications/fertilizer.ts)) et se change à la main. Le récapitulatif quotidien rappelle aussi les plantes qui attendent leur engrais ; avec un capteur, c'est la conductivité du sol qui décide.
 
+## Diagnostic de santé
+
+Dans la fiche d'une plante, **Santé > Un souci ? Demander un diagnostic** : une photo et/ou une question. La fiche de la plante (espèce, emplacement, arrosages, engrais, mesures) est jointe automatiquement.
+
+- **Analyser** : la fonction [`diagnose`](supabase/functions/diagnose/index.ts) demande d'abord à Pl@ntNet les maladies probables sur la photo, puis fait répondre un modèle de [Mistral](https://console.mistral.ai) qui lit les images (offre gratuite « Experiment » : les requêtes peuvent servir à entraîner leurs modèles). La réponse est gardée dans l'historique de la plante.
+- **Demander à Claude** : envoie la photo et le même message à l'app Claude par la feuille de partage du téléphone (ou ouvre claude.ai avec la question pré-remplie).
+
+Pour l'activer sur ta propre instance : crée une clé sur console.mistral.ai, ajoute-la dans **Edge Functions > Secrets** sous le nom `MISTRAL_API_KEY`, puis déploie la fonction :
+`npx supabase functions deploy diagnose --project-ref <ton-projet>`
+
 ## Partager avec la maison
 
 Dans **Réglages > Partage**, « Inviter quelqu'un » crée un lien valable 7 jours, utilisable une seule fois, à envoyer par message. La personne ouvre le lien, se connecte avec son e-mail et rejoint ton foyer : mêmes plantes, même plan, et chacun reçoit les rappels sur ses appareils. Le propriétaire du foyer peut retirer un membre ; un membre peut quitter le foyer.
