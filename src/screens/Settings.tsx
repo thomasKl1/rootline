@@ -181,6 +181,7 @@ function ExportCard({ garden }: { garden: Garden }) {
         r.events && plural(r.events, 'événement'),
         r.readings && plural(r.readings, 'mesure'),
         r.photos && plural(r.photos, 'photo'),
+        r.diagnoses && plural(r.diagnoses, 'diagnostic'),
         r.plan && 'le plan',
       ].filter(Boolean)
       setMessage({
@@ -220,8 +221,8 @@ function ExportCard({ garden }: { garden: Garden }) {
       <div>
         <h2 className="name">Sauvegarde</h2>
         <p className="small muted">
-          Un fichier avec tout le suivi : plantes et photos, arrosages, engrais, notes, mesures des capteurs et
-          plan. L'offre gratuite de Supabase ne fait pas de sauvegarde : garde-en une copie de temps en temps. La
+          Un fichier avec tout le suivi : plantes et photos, arrosages, engrais, notes, diagnostics, mesures des
+          capteurs et plan. L'offre gratuite de Supabase ne fait pas de sauvegarde : garde-en une copie de temps en temps. La
           restauration ajoute ce qui manque sans rien écraser.
         </p>
       </div>
@@ -246,7 +247,8 @@ function ExportCard({ garden }: { garden: Garden }) {
             </h2>
             <p className="muted">
               Sauvegarde du {new Date(backup.exported_at).toLocaleDateString('fr-FR')} : {plural(backup.plants.length, 'plante')},{' '}
-              {plural(backup.events.length, 'événement')}, {plural(backup.readings.length, 'mesure')}.
+              {plural(backup.events.length, 'événement')}, {plural(backup.readings.length, 'mesure')}
+              {backup.diagnoses?.length ? `, ${plural(backup.diagnoses.length, 'diagnostic')}` : ''}.
             </p>
             <p className="muted">Seul ce qui manque est ajouté : rien de ce qui existe déjà n'est modifié.</p>
             <div className="row">
