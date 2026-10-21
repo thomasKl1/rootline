@@ -13,7 +13,7 @@
 // Facultatif : MISTRAL_MODEL (par défaut mistral-medium-latest).
 
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
-import { type Disease, mistralAnswer, parseDiseases, SYSTEM_PROMPT, userText } from './prompt.ts'
+import { type Disease, mistralAnswer, mistralError, parseDiseases, SYSTEM_PROMPT, userText } from './prompt.ts'
 
 const PLANTNET_DISEASES_URL = 'https://my-api.plantnet.org/v2/diseases/identify'
 const MISTRAL_URL = 'https://api.mistral.ai/v1/chat/completions'
@@ -107,17 +107,22 @@ Deno.serve(async (req) => {
 
     let model = Deno.env.get('MISTRAL_MODEL') || DEFAULT_MODEL
     let res = await askMistral(model, text, image)
-    // Modèle indisponible sur l'offre gratuite : on se rabat sur un modèle plus petit.
-    if ((res.status === 400 || res.status === 403 || res.status === 404) && model !== FALLBACK_MODEL) {
+    // Modèle indisponible ou saturé sur l'offre gratuite (les limites sont fixées par modèle) :
+    // on se rabat sur un modèle plus petit.
+    if ([400, 403, 404, 429].includes(res.status) && model !== FALLBACK_MODEL) {
       console.error('Mistral', model, res.status, await res.text())
       model = FALLBACK_MODEL
       res = await askMistral(model, text, image)
     }
-    if (res.status === 429) return json({ error: 'Quota gratuit de Mistral atteint pour le moment. Réessaie dans quelques minutes.' }, 429)
-    if (res.status === 401) return json({ error: 'Clé Mistral refusée : vérifie MISTRAL_API_KEY dans les secrets Supabase.' }, 502)
     if (!res.ok) {
-      console.error('Mistral', model, res.status, await res.text())
-      return json({ error: "Le service de diagnostic ne répond pas. Réessaie dans un instant." }, 502)
+      const detail = await res.text()
+      console.error('Mistral', model, res.status, detail)
+      const reason = mistralError(detail)
+      if (res.status === 401)
+        return json({ error: 'Clé Mistral refusée : vérifie MISTRAL_API_KEY dans les secrets Supabase.' }, 502)
+      if (res.status === 429)
+        return json({ error: `Mistral refuse la demande (limite de l'offre gratuite)${reason ? ` : « ${reason} »` : ''}. Réessaie dans quelques minutes.` }, 429)
+      return json({ error: `Le service de diagnostic ne répond pas${reason ? ` (« ${reason} »)` : ''}. Réessaie dans un instant.` }, 502)
     }
     const answer = mistralAnswer(await res.json())
     if (!answer) return json({ error: 'Réponse vide du service de diagnostic.' }, 502)

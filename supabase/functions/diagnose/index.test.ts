@@ -1,7 +1,7 @@
 // Tests de la fonction diagnose, sans réseau : Pl@ntNet et Mistral sont simulés.
 // Lancer : deno test -A supabase/functions/diagnose/index.test.ts
 
-import { mistralAnswer, parseDiseases, userText } from './prompt.ts'
+import { mistralAnswer, mistralError, parseDiseases, userText } from './prompt.ts'
 
 function assertEquals(a: unknown, b: unknown) {
   const x = JSON.stringify(a), y = JSON.stringify(b)
@@ -83,9 +83,19 @@ Deno.test('modèle indisponible : repli sur le petit modèle', async () => {
   assertEquals(body.model, 'mistral-small-latest')
 })
 
-Deno.test('erreurs : quota, requête vide', async () => {
+Deno.test('quota du grand modèle : repli sur le petit', async () => {
+  calls.length = 0
   mistralStatus = { 'mistral-medium-latest': 429 }
-  assertEquals((await post({ context: '', question: 'Aide' })).status, 429)
+  const { status, body } = await post({ context: '', question: 'Aide' })
+  assertEquals(status, 200)
+  assertEquals(body.model, 'mistral-small-latest')
+})
+
+Deno.test('erreurs : quota des deux modèles, requête vide', async () => {
+  mistralStatus = { 'mistral-medium-latest': 429, 'mistral-small-latest': 429 }
+  const r = await post({ context: '', question: 'Aide' })
+  assertEquals(r.status, 429)
+  assert(r.body.error.includes('« nope »'), r.body.error)
   mistralStatus = {}
   assertEquals((await post({ context: 'x' })).status, 400)
 })
@@ -97,4 +107,6 @@ Deno.test('logique pure', () => {
   assert(userText('fiche', null, [], false).includes('Pas de question'), 'bilan')
   assertEquals(mistralAnswer({ choices: [{ message: { content: [{ type: 'text', text: 'Bonjour' }] } }] }), 'Bonjour')
   assertEquals(mistralAnswer({}), null)
+  assertEquals(mistralError('{"message":"Service tier capacity exceeded"}'), 'Service tier capacity exceeded')
+  assertEquals(mistralError(''), null)
 })

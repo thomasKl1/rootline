@@ -55,3 +55,15 @@ export function mistralAnswer(data: unknown): string | null {
   }
   return null
 }
+
+/** Message d'erreur lisible renvoyé par Mistral (corps JSON { message } ou { detail }), raccourci. */
+export function mistralError(body: string): string | null {
+  try {
+    const data = JSON.parse(body)
+    const msg = data?.message ?? data?.detail ?? data?.error?.message
+    const text = typeof msg === 'string' ? msg : msg ? JSON.stringify(msg) : null
+    return text ? text.slice(0, 160) : null
+  } catch {
+    return body.trim() ? body.trim().slice(0, 160) : null
+  }
+}
