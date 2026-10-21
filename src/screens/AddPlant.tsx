@@ -1,6 +1,7 @@
 import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react'
 import { identifyPhoto, searchSpecies, type Candidate } from '../lib/identify'
 import { prepareImage } from '../lib/image'
+import { useSwipeToClose } from '../lib/useSwipeToClose'
 import type { NewPlant } from '../lib/useGarden'
 import { careOrigin, PlantFields, toPlantFields, valuesFromCare, type PlantFormValues } from './PlantForm'
 
@@ -24,6 +25,7 @@ export function AddPlant({ onCancel, onSave }: Props) {
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [chosen, setChosen] = useState<Candidate | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const sheetRef = useSwipeToClose<HTMLDivElement>(onCancel)
 
   // Libère l'URL d'aperçu quand la photo change ou que la feuille se ferme.
   useEffect(() => () => void (preview && URL.revokeObjectURL(preview)), [preview])
@@ -56,6 +58,7 @@ export function AddPlant({ onCancel, onSave }: Props) {
   return (
     <div className="sheet-backdrop" onClick={onCancel}>
       <div
+        ref={sheetRef}
         className="sheet stack"
         onClick={(e) => e.stopPropagation()}
         role="dialog"

@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { buildContext } from '../lib/diagnose'
 import { usePlantHistory } from '../lib/history'
+import { useSwipeToClose } from '../lib/useSwipeToClose'
 import { careForSpecies, type Care } from '../lib/identify'
 import { ORIENTATION_LABEL, roomOrientations } from '../lib/plan'
 import { computeStatus } from '../lib/status'
@@ -29,6 +30,7 @@ export function PlantSheet({ plant: initialPlant, garden, onClose, onDone, onToa
   // La fiche suit la version rechargée de la plante (après un déplacement sur le plan, par exemple).
   const plant = garden.plants.find((p) => p.id === initialPlant.id) ?? initialPlant
   const history = usePlantHistory(plant, garden.plants)
+  const sheetRef = useSwipeToClose<HTMLDivElement>(onClose)
 
   const [values, setValues] = useState<PlantFormValues>(() => valuesFromPlant(plant))
   const [refreshed, setRefreshed] = useState<Care | null>(null)
@@ -104,6 +106,7 @@ export function PlantSheet({ plant: initialPlant, garden, onClose, onDone, onToa
   return (
     <div className="sheet-backdrop" onClick={onClose}>
       <div
+        ref={sheetRef}
         className="sheet stack"
         onClick={(e) => e.stopPropagation()}
         role="dialog"

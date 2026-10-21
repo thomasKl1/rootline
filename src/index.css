@@ -1163,3 +1163,19 @@ section.card .small {
 .diseases p {
   margin: 0;
 }
+
+/* --- Feuilles : tirer vers le bas pour fermer ---------------------------- */
+/* Pas de « tirer pour actualiser » de Chrome tant qu'une feuille est ouverte. */
+html.sheet-open,
+html.sheet-open body {
+  overscroll-behavior-y: none;
+}
+.sheet {
+  overscroll-behavior: contain;
+}
+.sheet-backdrop {
+  touch-action: none;
+}
+.sheet-backdrop .sheet {
+  touch-action: pan-y;
+}
