@@ -6,8 +6,10 @@
 // Réponse : { answer, diseases: [{ name, description, score }], model }
 //
 // Modèle utilisé, selon les secrets présents (Supabase > Edge Functions > Secrets) :
-//   - GITHUB_MODELS_TOKEN : GitHub Models, gratuit (jeton GitHub avec la permission « Models : lecture »)
+//   - CLOUDFLARE_ACCOUNT_ID + CLOUDFLARE_API_TOKEN : Cloudflare Workers AI, gratuit
+//     (10 000 « neurones » par jour) ; modèle Mistral Small 3.1, sous licence Apache 2.0
 //   - sinon MISTRAL_API_KEY : Mistral (désormais réservé aux offres payantes de Mistral)
+// (GitHub Models a fermé le 30 juillet 2026.)
 // Facultatif : DIAGNOSE_MODEL pour imposer un modèle. PLANTNET_API_KEY pour les maladies.
 //
 // La fiche (context) est préparée par l'app à partir de ce qu'elle affiche déjà : la fonction
@@ -33,14 +35,16 @@ type Provider = {
 }
 
 function provider(): Provider | null {
-  const github = Deno.env.get('GITHUB_MODELS_TOKEN')
-  if (github)
+  const account = Deno.env.get('CLOUDFLARE_ACCOUNT_ID')
+  const token = Deno.env.get('CLOUDFLARE_API_TOKEN')
+  if (account && token)
     return {
-      name: 'GitHub Models',
-      url: 'https://models.github.ai/inference/chat/completions',
-      key: github,
-      models: ['openai/gpt-4.1-mini', 'openai/gpt-4o-mini'],
-      image: (url) => ({ url, detail: 'high' }),
+      name: 'Cloudflare Workers AI',
+      url: `https://api.cloudflare.com/client/v4/accounts/${account}/ai/v1/chat/completions`,
+      key: token,
+      // Pas de modèle Llama : sa licence exclut les modèles multimodaux pour qui réside dans l'UE.
+      models: ['@cf/mistralai/mistral-small-3.1-24b-instruct', '@cf/qwen/qwen3.8-27b'],
+      image: (url) => ({ url }),
     }
   const mistral = Deno.env.get('MISTRAL_API_KEY')
   if (mistral)
@@ -118,7 +122,8 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
   if (req.method !== 'POST') return json({ error: 'Méthode non autorisée.' }, 405)
   const p = provider()
-  if (!p) return json({ error: 'Aucun modèle configuré : ajoute GITHUB_MODELS_TOKEN dans les secrets Supabase.' }, 500)
+  if (!p)
+    return json({ error: 'Aucun modèle configuré : ajoute CLOUDFLARE_ACCOUNT_ID et CLOUDFLARE_API_TOKEN dans les secrets Supabase.' }, 500)
 
   let body: { context?: string; question?: string | null; image?: string | null }
   try {
@@ -166,8 +171,20 @@ Deno.serve(async (req) => {
         return json({ error: `${p.name} : limite de l'offre gratuite atteinte${reason ? ` (« ${reason} »)` : ''}. Réessaie plus tard.` }, 429)
       return json({ error: `Le service de diagnostic ne répond pas${reason ? ` (« ${reason} »)` : ''}. Réessaie dans un instant.` }, 502)
     }
-    const answer = mistralAnswer(await res.json())
-    if (!answer) return json({ error: 'Réponse vide du service de diagnostic.' }, 502)
+    // Réponse lue comme du texte : un service qui ne renvoie pas de JSON ne fait plus planter la fonction.
+    const raw = await res.text()
+    let data: unknown = null
+    try {
+      data = JSON.parse(raw)
+    } catch {
+      console.error(p.name, model, 'réponse non JSON', raw.slice(0, 300))
+      return json({ error: `Réponse illisible de ${p.name} (« ${raw.trim().slice(0, 80)} »).` }, 502)
+    }
+    const answer = mistralAnswer(data)
+    if (!answer) {
+      console.error(p.name, model, 'réponse sans texte', raw.slice(0, 300))
+      return json({ error: 'Réponse vide du service de diagnostic.' }, 502)
+    }
     return json({ answer, diseases, model })
   } catch (e) {
     console.error(e)
