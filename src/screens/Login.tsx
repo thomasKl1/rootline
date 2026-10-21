@@ -1,4 +1,5 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
+import { pendingInvite, previewInvite, type InvitePreview } from '../lib/sharing'
 import { supabase } from '../lib/supabase'
 
 /**
@@ -12,6 +13,12 @@ export function Login() {
   const [step, setStep] = useState<'email' | 'code'>('email')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [invite, setInvite] = useState<InvitePreview | null>(null)
+  const token = pendingInvite()
+
+  useEffect(() => {
+    if (token) void previewInvite(token).then(setInvite)
+  }, [token])
 
   async function sendEmail(e: FormEvent) {
     e.preventDefault()
@@ -19,7 +26,10 @@ export function Login() {
     setError(null)
     const { error } = await supabase.auth.signInWithOtp({
       email: email.trim(),
-      options: { emailRedirectTo: window.location.origin + import.meta.env.BASE_URL },
+      // Le lien de l'e-mail rapporte l'invitation, au cas où il s'ouvrirait dans un autre navigateur.
+      options: {
+        emailRedirectTo: window.location.origin + import.meta.env.BASE_URL + (token ? `?invite=${token}` : ''),
+      },
     })
     setBusy(false)
     if (error) setError(traduire(error.message))
@@ -40,6 +50,18 @@ export function Login() {
       <img src={`${import.meta.env.BASE_URL}icon.svg`} alt="" width={72} height={72} className="login-logo" />
       <h1 className="display">Rootline</h1>
       <p className="muted">Tes plantes, de la racine à la notification.</p>
+
+      {invite?.status === 'valid' && (
+        <p className="card pad-card invite-banner">
+          <strong>{invite.inviter ?? 'Quelqu’un'}</strong> t'invite à suivre ses plantes. Connecte-toi pour rejoindre
+          son foyer.
+        </p>
+      )}
+      {(invite?.status === 'used' || invite?.status === 'expired') && (
+        <p className="card pad-card invite-banner">
+          Cette invitation {invite.status === 'used' ? 'a déjà servi' : 'a expiré'} : demande un nouveau lien.
+        </p>
+      )}
 
       {step === 'email' ? (
         <form onSubmit={sendEmail} className="stack">

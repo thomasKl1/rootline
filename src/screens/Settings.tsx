@@ -3,12 +3,15 @@ import { disablePush, enablePush, getPushState, sendTestPush, type PushState } f
 import { supabase } from '../lib/supabase'
 import type { useGarden } from '../lib/useGarden'
 import { PlanImport } from './PlanImport'
+import { SharingCard } from './Sharing'
 
 type Garden = ReturnType<typeof useGarden>
 
 const HOURS = Array.from({ length: 17 }, (_, i) => i + 6) // 6 h → 22 h
 
-export function Settings({ email, garden }: { email: string | undefined; garden: Garden }) {
+type SettingsProps = { email: string | undefined; garden: Garden; onToast: (text: string) => void }
+
+export function Settings({ email, garden, onToast }: SettingsProps) {
   return (
     <main className="screen">
       <header className="home-header">
@@ -16,6 +19,8 @@ export function Settings({ email, garden }: { email: string | undefined; garden:
       </header>
 
       <Reminders garden={garden} />
+
+      <SharingCard garden={garden} onToast={onToast} />
 
       <section className="card stack pad-card">
         <div>

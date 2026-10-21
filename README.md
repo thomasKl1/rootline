@@ -60,6 +60,12 @@ npm run dev                  # http://localhost:5173
 3. Pousse sur `main` : le workflow [`deploy.yml`](.github/workflows/deploy.yml) construit et publie l'app.
 4. Sur ton téléphone, ouvre l'adresse dans Chrome (ou Safari) et choisis **Ajouter à l'écran d'accueil**.
 
+## Partager avec la maison
+
+Dans **Réglages > Partage**, « Inviter quelqu'un » crée un lien valable 7 jours, utilisable une seule fois, à envoyer par message. La personne ouvre le lien, se connecte avec son e-mail et rejoint ton foyer : mêmes plantes, même plan, et chacun reçoit les rappels sur ses appareils. Le propriétaire du foyer peut retirer un membre ; un membre peut quitter le foyer.
+
+Pour que le lien de connexion reçu par e-mail garde l'invitation, ajoute dans **Authentication > URL Configuration > Redirect URLs** l'adresse de ton app suivie de `**`, par ex. `https://<ton-compte>.github.io/rootline/**`.
+
 ## Le plan de l'appartement
 
 L'onglet **Plan** affiche ton appartement avec une pastille par plante. Touche une pièce pour voir ses plantes et l'orientation de ses fenêtres ; en mode « Placer les plantes », fais glisser une pastille : sa pièce et l'orientation de la fenêtre la plus proche sont mises à jour toutes seules.

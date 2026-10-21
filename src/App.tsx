@@ -10,6 +10,7 @@ import { PlanScreen } from './screens/Plan'
 import { RoomsContext } from './screens/PlantForm'
 import { PlantSheet } from './screens/PlantSheet'
 import { Settings } from './screens/Settings'
+import { JoinInvite } from './screens/Sharing'
 
 type Tab = 'plants' | 'plan' | 'settings'
 
@@ -70,7 +71,9 @@ function Garden({ session }: { session: Session }) {
         />
       )}
       {tab === 'plan' && <PlanScreen garden={garden} onOpen={setOpenPlant} onToast={(t) => showToast(t, null)} />}
-      {tab === 'settings' && <Settings email={session.user.email} garden={garden} />}
+      {tab === 'settings' && <Settings email={session.user.email} garden={garden} onToast={(t) => showToast(t, null)} />}
+
+      <JoinInvite garden={garden} onToast={(t) => showToast(t, null)} />
 
       {toast && (
         <div className="toast" role="status">

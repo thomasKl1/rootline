@@ -1064,3 +1064,25 @@ label.btn.disabled {
 .pin:focus {
   outline: none;
 }
+
+/* --- Partage ------------------------------------------------------------- */
+.invite-banner {
+  margin: 0;
+  font-size: 15px;
+  border-left: 4px solid var(--accent);
+}
+.people li,
+.compact-list.flush li {
+  align-items: center;
+}
+.person {
+  display: flex;
+  flex-direction: column;
+  padding: 10px 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.field input[readonly] {
+  font-size: 13px;
+  color: var(--ink-2);
+}

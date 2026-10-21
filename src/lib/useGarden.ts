@@ -75,7 +75,12 @@ export function useGarden() {
   const [state, setState] = useState<GardenState>(initial)
 
   const load = useCallback(async () => {
-    const membership = await supabase.from('household_members').select('household_id').limit(1).maybeSingle()
+    const membership = await supabase
+      .from('household_members')
+      .select('household_id')
+      .order('joined_at', { ascending: false }) // le foyer rejoint le plus récemment
+      .limit(1)
+      .maybeSingle()
     if (membership.error) {
       setState((s) => ({ ...s, loading: false, error: membership.error.message }))
       return
