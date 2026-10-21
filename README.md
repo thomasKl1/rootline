@@ -95,6 +95,17 @@ Le plan s'importe dans **Réglages > Plan de l'appartement**, sous forme d'un fi
 
 Les noms des pièces du plan remplacent la liste de pièces proposée à l'ajout d'une plante. Un plan plus large que haut est tourné d'un quart de tour pour remplir l'écran du téléphone.
 
+## Offre gratuite de Supabase : éviter la mise en pause
+
+Supabase met en pause un projet gratuit qui n'a pas d'activité pendant 7 jours (un e-mail prévient une semaine avant ; le projet se relance d'un clic dans le tableau de bord). Pendant la pause, plus de rappels. Deux choses gardent le projet éveillé :
+
+- la fonction `notifications`, appelée toutes les heures par la base ;
+- le workflow [`keepalive.yml`](.github/workflows/keepalive.yml), qui fait chaque jour une requête depuis GitHub avec la clé publique.
+
+GitHub désactive les workflows planifiés d'un dépôt public après 60 jours sans commit (il prévient par e-mail) : dans ce cas, réactive-le dans l'onglet **Actions**.
+
+L'offre gratuite ne comprend pas de sauvegarde automatique de la base.
+
 ## Sécurité
 
 - La clé *publishable* de Supabase est publique par conception : elle est visible dans le code de la page.

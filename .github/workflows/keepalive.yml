@@ -1,0 +1,31 @@
+name: Garder Supabase éveillé
+
+# L'offre gratuite de Supabase met en pause un projet sans activité pendant 7 jours : les rappels
+# s'arrêteraient. Les appels horaires de la fonction notifications partent de la base elle-même,
+# et Supabase ne garantit pas qu'ils comptent. Ce workflow fait chaque jour une vraie requête de
+# l'extérieur, avec la clé publique (aucun secret, aucune donnée lue).
+
+on:
+  schedule:
+    - cron: '17 5 * * *' # tous les jours vers 7 h à Paris
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    if: vars.VITE_SUPABASE_URL != ''
+    steps:
+      - name: Requête à la base
+        env:
+          URL: ${{ vars.VITE_SUPABASE_URL }}
+          KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          # Une invitation qui n'existe pas : la base fait une vraie recherche et ne renvoie rien.
+          curl --fail-with-body --silent --show-error --retry 3 --retry-delay 20 \
+            -X POST "$URL/rest/v1/rpc/invitation_preview" \
+            -H "apikey: $KEY" -H "Content-Type: application/json" \
+            -d '{"p_token":"keepalive"}'
+          echo
+          echo "Supabase a répondu."
