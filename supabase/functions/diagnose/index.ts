@@ -56,6 +56,15 @@ async function plantnetDiseases(bytes: Uint8Array<ArrayBuffer>): Promise<Disease
   }
 }
 
+/** Compteurs de limite renvoyés par Mistral (requêtes et jetons restants), pour les journaux. */
+function rateHeaders(res: Response): string {
+  const out: string[] = []
+  res.headers.forEach((v, k) => {
+    if (k.toLowerCase().includes('ratelimit') || k.toLowerCase() === 'retry-after') out.push(`${k}=${v}`)
+  })
+  return out.length ? `[${out.join(' ')}]` : '[pas de compteur]'
+}
+
 async function askMistral(model: string, text: string, imageBase64: string | null) {
   const content: unknown[] = [{ type: 'text', text }]
   if (imageBase64) content.push({ type: 'image_url', image_url: `data:image/jpeg;base64,${imageBase64}` })
@@ -110,13 +119,15 @@ Deno.serve(async (req) => {
     // Modèle indisponible ou saturé sur l'offre gratuite (les limites sont fixées par modèle) :
     // on se rabat sur un modèle plus petit.
     if ([400, 403, 404, 429].includes(res.status) && model !== FALLBACK_MODEL) {
-      console.error('Mistral', model, res.status, await res.text())
+      console.error('Mistral', model, res.status, rateHeaders(res), await res.text())
       model = FALLBACK_MODEL
+      // L'offre gratuite n'autorise qu'une requête par seconde : on attend avant de réessayer.
+      await new Promise((r) => setTimeout(r, 1200))
       res = await askMistral(model, text, image)
     }
     if (!res.ok) {
       const detail = await res.text()
-      console.error('Mistral', model, res.status, detail)
+      console.error('Mistral', model, res.status, rateHeaders(res), detail)
       const reason = mistralError(detail)
       if (res.status === 401)
         return json({ error: 'Clé Mistral refusée : vérifie MISTRAL_API_KEY dans les secrets Supabase.' }, 502)
