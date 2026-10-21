@@ -12,7 +12,7 @@
 | 2 | Plantes : photo, identification Pl@ntNet, seuils Open Plantbook | ✅ |
 | 3 | Rappels et notifications push | ✅ |
 | 4 | Capteurs Flower Care + passerelle ESP32, détection automatique de l'arrosage | à venir |
-| 5 | Plan de l'appartement, historique, courbes | à venir |
+| 5 | Plan de l'appartement, historique, courbes | ✅ |
 
 ## Pile technique
 
@@ -59,6 +59,35 @@ npm run dev                  # http://localhost:5173
    - `VITE_SUPABASE_PUBLISHABLE_KEY`
 3. Pousse sur `main` : le workflow [`deploy.yml`](.github/workflows/deploy.yml) construit et publie l'app.
 4. Sur ton téléphone, ouvre l'adresse dans Chrome (ou Safari) et choisis **Ajouter à l'écran d'accueil**.
+
+## Le plan de l'appartement
+
+L'onglet **Plan** affiche ton appartement avec une pastille par plante. Touche une pièce pour voir ses plantes et l'orientation de ses fenêtres ; en mode « Placer les plantes », fais glisser une pastille : sa pièce et l'orientation de la fenêtre la plus proche sont mises à jour toutes seules.
+
+Le plan s'importe dans **Réglages > Plan de l'appartement**, sous forme d'un fichier JSON. Le plus simple : fais une capture de la carte de ton robot aspirateur, relève les coins de chaque pièce en pixels (n'importe quel éditeur d'image affiche la position du curseur), puis écris le fichier :
+
+```json
+{
+  "width": 600,
+  "height": 400,
+  "north": 0,
+  "rooms": [
+    { "name": "Salon", "points": [[0, 0], [350, 0], [350, 400], [0, 400]] },
+    { "name": "Cuisine", "points": [[350, 0], [600, 0], [600, 220], [350, 220]], "label": [475, 110] }
+  ],
+  "windows": [
+    { "room": "Salon", "from": [0, 120], "to": [0, 260], "orientation": "O" },
+    { "room": "Cuisine", "from": [420, 0], "to": [540, 0], "orientation": "N" }
+  ]
+}
+```
+
+- `width`, `height` : taille du dessin, dans l'unité de ton choix (ici, les pixels de la capture).
+- `north` : direction du nord sur le dessin, en degrés dans le sens horaire depuis le haut (0 = le nord est en haut, 90 = à droite).
+- `rooms` : une pièce = un nom et la liste de ses coins `[x, y]`, dans l'ordre du contour. `label` (facultatif) place le nom de la pièce.
+- `windows` : une fenêtre = sa pièce, ses deux extrémités et l'orientation de sa façade (`N`, `NE`, `E`, `SE`, `S`, `SO`, `O` ou `NO`).
+
+Les noms des pièces du plan remplacent la liste de pièces proposée à l'ajout d'une plante. Un plan plus large que haut est tourné d'un quart de tour pour remplir l'écran du téléphone.
 
 ## Sécurité
 

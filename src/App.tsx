@@ -6,8 +6,10 @@ import { useGarden } from './lib/useGarden'
 import { AddPlant } from './screens/AddPlant'
 import { Home } from './screens/Home'
 import { Login } from './screens/Login'
+import { PlanScreen } from './screens/Plan'
+import { RoomsContext } from './screens/PlantForm'
 import { PlantSheet } from './screens/PlantSheet'
-import { Settings, Soon } from './screens/Settings'
+import { Settings } from './screens/Settings'
 
 type Tab = 'plants' | 'plan' | 'settings'
 
@@ -56,6 +58,7 @@ function Garden({ session }: { session: Session }) {
   }
 
   return (
+    <RoomsContext.Provider value={garden.rooms}>
     <div className="app">
       {tab === 'plants' && (
         <Home
@@ -66,9 +69,7 @@ function Garden({ session }: { session: Session }) {
           onOpen={setOpenPlant}
         />
       )}
-      {tab === 'plan' && (
-        <Soon title="Plan" text="Bientôt : le plan de ton appartement, avec une pastille par plante." />
-      )}
+      {tab === 'plan' && <PlanScreen garden={garden} onOpen={setOpenPlant} onToast={(t) => showToast(t, null)} />}
       {tab === 'settings' && <Settings email={session.user.email} garden={garden} />}
 
       {toast && (
@@ -93,6 +94,7 @@ function Garden({ session }: { session: Session }) {
           plant={openPlant}
           garden={garden}
           onClose={() => setOpenPlant(null)}
+          onToast={showToast}
           onDone={(message) => {
             setOpenPlant(null)
             showToast(message, null)
@@ -122,6 +124,7 @@ function Garden({ session }: { session: Session }) {
         <TabButton label="Réglages" active={tab === 'settings'} onClick={() => setTab('settings')} icon={ICONS.gear} />
       </nav>
     </div>
+    </RoomsContext.Provider>
   )
 }
 

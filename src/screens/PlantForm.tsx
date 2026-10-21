@@ -1,8 +1,12 @@
+import { createContext, useContext } from 'react'
 import type { Care } from '../lib/identify'
 import { ROOMS, type Plant } from '../lib/types'
 import type { NewPlant } from '../lib/useGarden'
 
 type Num = number | ''
+
+/** Pièces proposées dans les formulaires : celles du plan s'il y en a un, sinon la liste par défaut. */
+export const RoomsContext = createContext<readonly string[]>(ROOMS)
 
 /** Valeurs du formulaire ; '' = champ vide (seuil inconnu). */
 export type PlantFormValues = {
@@ -86,6 +90,9 @@ export function careOrigin(care: Care | null | undefined): string {
 /** Champs communs à l'ajout et à la fiche d'une plante (contrôlés par le parent). */
 export function PlantFields({ values, onChange }: { values: PlantFormValues; onChange: (v: PlantFormValues) => void }) {
   const set = <K extends keyof PlantFormValues>(key: K, value: PlantFormValues[K]) => onChange({ ...values, [key]: value })
+  const rooms = useContext(RoomsContext)
+  // Une pièce qui n'existe plus dans le plan reste affichée, pour ne pas la perdre en silence.
+  const options = values.room && !rooms.includes(values.room) ? [...rooms, values.room] : rooms
   return (
     <>
       <label className="field">
@@ -97,7 +104,7 @@ export function PlantFields({ values, onChange }: { values: PlantFormValues; onC
         <span>Pièce</span>
         <select value={values.room} onChange={(e) => set('room', e.target.value)}>
           <option value="">Non précisée</option>
-          {ROOMS.map((r) => (
+          {options.map((r) => (
             <option key={r}>{r}</option>
           ))}
         </select>

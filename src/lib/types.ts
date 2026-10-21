@@ -1,3 +1,5 @@
+import type { Orientation } from './plan'
+
 export type Plant = {
   id: string
   household_id: string
@@ -6,6 +8,9 @@ export type Plant = {
   species_common: string | null
   photo_path: string | null
   room: string | null
+  window_orientation: Orientation | null
+  map_x: number | null
+  map_y: number | null
   sensor_mac: string | null
   moisture_min: number | null
   moisture_max: number | null
@@ -28,6 +33,8 @@ export type Reading = {
   battery: number | null
 }
 
+export type EventKind = 'water' | 'fertilize' | 'note'
+
 export type WaterEvent = {
   id: string
   plant_id: string
@@ -35,4 +42,7 @@ export type WaterEvent = {
   source: 'manual' | 'auto'
 }
 
+export type PlantEvent = WaterEvent & { kind: EventKind; note: string | null }
+
+/** Pièces proposées tant qu'aucun plan n'est importé. */
 export const ROOMS = ['Salon', 'Chambre', 'Cuisine', 'Bureau', "Salle d'eau", 'Couloir', 'Toilettes'] as const

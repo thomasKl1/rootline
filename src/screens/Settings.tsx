@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { disablePush, enablePush, getPushState, sendTestPush, type PushState } from '../lib/push'
 import { supabase } from '../lib/supabase'
 import type { useGarden } from '../lib/useGarden'
+import { PlanImport } from './PlanImport'
 
 type Garden = ReturnType<typeof useGarden>
 
@@ -15,6 +16,18 @@ export function Settings({ email, garden }: { email: string | undefined; garden:
       </header>
 
       <Reminders garden={garden} />
+
+      <section className="card stack pad-card">
+        <div>
+          <h2 className="name">Plan de l'appartement</h2>
+          <p className="small muted">
+            {garden.plan
+              ? `${garden.plan.rooms.length} pièces, ${garden.plan.windows.length} fenêtres.`
+              : "Aucun plan : importe un fichier JSON décrivant tes pièces et tes fenêtres (voir le guide d'installation)."}
+          </p>
+        </div>
+        <PlanImport garden={garden} />
+      </section>
 
       <section className="card stack pad-card">
         <div>
@@ -125,18 +138,5 @@ function Reminders({ garden }: { garden: Garden }) {
         </p>
       )}
     </section>
-  )
-}
-
-export function Soon({ title, text }: { title: string; text: string }) {
-  return (
-    <main className="screen">
-      <header className="home-header">
-        <h1 className="display">{title}</h1>
-      </header>
-      <section className="empty">
-        <p className="muted">{text}</p>
-      </section>
-    </main>
   )
 }

@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from './supabase'
-import type { Plant, Reading, WaterEvent } from './types'
+import type { FloorPlan, Orientation } from './plan'
+import { ROOMS, type EventKind, type Plant, type Reading, type WaterEvent } from './types'
 
 export type NewPlant = {
   name: string
@@ -16,7 +17,18 @@ export type NewPlant = {
   interval_winter_days: number | null
 }
 
-export type Household = { id: string; name: string; timezone: string; reminder_hour: number }
+/** Champs modifiables d'une plante : ceux de l'ajout, plus son emplacement sur le plan. */
+export type PlantUpdate = Partial<
+  NewPlant & { window_orientation: Orientation | null; map_x: number | null; map_y: number | null }
+>
+
+export type Household = {
+  id: string
+  name: string
+  timezone: string
+  reminder_hour: number
+  floor_plan: FloorPlan | null
+}
 
 type GardenState = {
   loading: boolean
@@ -75,7 +87,7 @@ export function useGarden() {
     }
 
     const [household, plants, events, readings] = await Promise.all([
-      supabase.from('households').select('id, name, timezone, reminder_hour').eq('id', householdId).single(),
+      supabase.from('households').select('id, name, timezone, reminder_hour, floor_plan').eq('id', householdId).single(),
       supabase.from('plants').select('*').eq('household_id', householdId).is('archived_at', null).order('name'),
       supabase
         .from('events')
@@ -164,7 +176,7 @@ export function useGarden() {
   )
 
   const updatePlant = useCallback(
-    async (id: string, fields: Partial<NewPlant>) => {
+    async (id: string, fields: PlantUpdate) => {
       const { error } = await supabase.from('plants').update(fields).eq('id', id)
       if (error) return error.message
       await load()
@@ -185,12 +197,12 @@ export function useGarden() {
     [load],
   )
 
-  /** Enregistre un arrosage manuel ; renvoie l'id de l'événement pour pouvoir l'annuler. */
-  const water = useCallback(
-    async (plant: Plant) => {
+  /** Enregistre un événement manuel (arrosage, engrais, note) ; renvoie son id pour pouvoir l'annuler. */
+  const addEvent = useCallback(
+    async (plant: Plant, kind: EventKind, note: string | null = null) => {
       const { data, error } = await supabase
         .from('events')
-        .insert({ household_id: plant.household_id, plant_id: plant.id, kind: 'water', source: 'manual' })
+        .insert({ household_id: plant.household_id, plant_id: plant.id, kind, source: 'manual', note })
         .select('id')
         .single()
       if (error) return { id: null, error: error.message }
@@ -200,13 +212,19 @@ export function useGarden() {
     [load],
   )
 
+  const water = useCallback((plant: Plant) => addEvent(plant, 'water'), [addEvent])
+
   const undoEvent = useCallback(
     async (eventId: string) => {
-      await supabase.from('events').delete().eq('id', eventId)
+      const { error } = await supabase.from('events').delete().eq('id', eventId)
       await load()
+      return error?.message ?? null
     },
     [load],
   )
 
-  return { ...state, reload: load, updateHousehold, addPlant, updatePlant, deletePlant, water, undoEvent }
+  const plan = state.household?.floor_plan ?? null
+  const rooms = useMemo(() => (plan ? plan.rooms.map((r) => r.name) : ROOMS), [plan])
+
+  return { ...state, plan, rooms, reload: load, updateHousehold, addPlant, updatePlant, deletePlant, addEvent, water, undoEvent }
 }
