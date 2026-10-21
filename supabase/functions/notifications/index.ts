@@ -14,6 +14,7 @@ import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2'
 import webpush from 'npm:web-push@3.6.7'
 import { digestMessage, localClock, toWallClock } from './digest.ts'
+import { fertilizerStatus, type FertilizerPlant } from './fertilizer.ts'
 import { computeStatus, type StatusPlant } from './status.ts'
 
 const cors = {
@@ -87,29 +88,35 @@ type Household = { id: string; timezone: string; reminder_hour: number }
 /** Plantes à arroser d'un foyer, calculées comme dans l'app, à l'heure murale du foyer. */
 async function thirstyPlants(db: SupabaseClient, h: Household, now: Date) {
   const [plants, events, readings] = await Promise.all([
-    db.from('plants').select('id, name, sensor_mac, moisture_min, interval_summer_days, interval_winter_days')
+    db.from('plants')
+      .select('id, name, species, sensor_mac, moisture_min, interval_summer_days, interval_winter_days, fertilizer_category, conductivity_min, conductivity_max')
       .eq('household_id', h.id).is('archived_at', null),
-    db.from('events').select('plant_id, occurred_at').eq('household_id', h.id).eq('kind', 'water')
-      .order('occurred_at', { ascending: false }).limit(500),
-    db.from('readings').select('sensor_mac, moisture').eq('household_id', h.id)
+    db.from('events').select('plant_id, kind, occurred_at').eq('household_id', h.id).in('kind', ['water', 'fertilize'])
+      .order('occurred_at', { ascending: false }).limit(1000),
+    db.from('readings').select('sensor_mac, moisture, conductivity').eq('household_id', h.id)
       .order('measured_at', { ascending: false }).limit(500),
   ])
   const lastWatered = new Map<string, Date>()
+  const lastFertilized = new Map<string, Date>()
   for (const e of events.data ?? []) {
-    if (!lastWatered.has(e.plant_id)) lastWatered.set(e.plant_id, toWallClock(new Date(e.occurred_at), h.timezone))
+    const map = e.kind === 'fertilize' ? lastFertilized : lastWatered
+    if (!map.has(e.plant_id)) map.set(e.plant_id, toWallClock(new Date(e.occurred_at), h.timezone))
   }
-  const latest = new Map<string, { moisture: number | null }>()
+  const latest = new Map<string, { moisture: number | null; conductivity: number | null }>()
   for (const r of readings.data ?? []) if (!latest.has(r.sensor_mac)) latest.set(r.sensor_mac, r)
 
   const wallNow = toWallClock(now, h.timezone)
   const late: string[] = []
   const today: string[] = []
-  for (const p of (plants.data ?? []) as (StatusPlant & { id: string; name: string })[]) {
-    const s = computeStatus(p, p.sensor_mac ? latest.get(p.sensor_mac) : undefined, lastWatered.get(p.id), wallNow)
+  const fertilize: string[] = []
+  for (const p of (plants.data ?? []) as (StatusPlant & FertilizerPlant & { id: string; name: string })[]) {
+    const reading = p.sensor_mac ? latest.get(p.sensor_mac) : undefined
+    const s = computeStatus(p, reading, lastWatered.get(p.id), wallNow)
     if (s.urgency === 'late') late.push(p.name)
     else if (s.urgency === 'today') today.push(p.name)
+    if (fertilizerStatus(p, lastFertilized.get(p.id), reading?.conductivity, wallNow).due) fertilize.push(p.name)
   }
-  return { late, today }
+  return { late, today, fertilize }
 }
 
 async function membersSubscriptions(db: SupabaseClient, householdId: string): Promise<Subscription[]> {
@@ -136,14 +143,14 @@ export async function runReminders(db: SupabaseClient, now = new Date()) {
       continue
     }
 
-    const { late, today } = await thirstyPlants(db, h, now)
-    const message = digestMessage(late, today)
+    const { late, today, fertilize } = await thirstyPlants(db, h, now)
+    const message = digestMessage(late, today, fertilize)
     if (!message) {
       report.push({ household: h.id, status: 'rien à arroser' })
       continue
     }
     const sent = await sendAll(db, await membersSubscriptions(db, h.id), { ...message, tag: `digest-${date}` })
-    await db.from('reminders_sent').update({ plant_names: [...late, ...today] })
+    await db.from('reminders_sent').update({ plant_names: [...new Set([...late, ...today, ...fertilize])] })
       .eq('household_id', h.id).eq('local_date', date)
     report.push({ household: h.id, status: `${sent} envoi(s)` })
   }

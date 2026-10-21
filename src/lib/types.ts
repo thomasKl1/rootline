@@ -20,6 +20,8 @@ export type Plant = {
   interval_summer_days: number | null
   interval_winter_days: number | null
   notes: string | null
+  /** Catégorie d'engrais choisie à la main ; null = déduite de l'espèce. */
+  fertilizer_category: string | null
   created_at: string
 }
 

@@ -45,17 +45,35 @@ export function joinNames(names: string[]): string {
   return `${names.slice(0, -1).join(', ')} et ${names[names.length - 1]}`
 }
 
-/** Texte du récapitulatif ; les plantes en retard sont listées en premier. */
-export function digestMessage(late: string[], today: string[]): { title: string; body: string } | null {
+/** « A, B, C et 2 autres » au-delà de 4 noms. */
+function shortList(names: string[]) {
+  return joinNames(names.length > 4 ? [...names.slice(0, 3), `${names.length - 3} autres`] : names)
+}
+
+/**
+ * Texte du récapitulatif ; les plantes en retard sont listées en premier.
+ * Les plantes qui attendent leur engrais sont ajoutées à la fin (ou font le titre s'il n'y a rien à arroser).
+ */
+export function digestMessage(
+  late: string[],
+  today: string[],
+  fertilize: string[] = [],
+): { title: string; body: string } | null {
   const names = [...late, ...today]
-  if (names.length === 0) return null
+  const feed = fertilize.length ? `Engrais : ${shortList(fertilize)}.` : ''
+  if (names.length === 0) {
+    if (!feed) return null
+    return {
+      title: fertilize.length === 1 ? `Engrais pour ${fertilize[0]}` : `${fertilize.length} plantes attendent leur engrais`,
+      body: fertilize.length === 1 ? "C'est le moment de lui donner de l'engrais." : feed,
+    }
+  }
   const title = names.length === 1 ? `${names[0]} a soif` : `${names.length} plantes ont soif`
-  const shown = names.length > 4 ? [...names.slice(0, 3), `${names.length - 3} autres`] : names
-  const body =
+  const water =
     names.length === 1
       ? late.length
         ? "Son arrosage est en retard. Un petit verre d'eau ?"
         : "C'est le jour de l'arroser."
-      : `À arroser aujourd'hui : ${joinNames(shown)}.`
-  return { title, body }
+      : `À arroser aujourd'hui : ${shortList(names)}.`
+  return { title, body: feed ? `${water} ${feed}` : water }
 }

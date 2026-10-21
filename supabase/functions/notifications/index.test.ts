@@ -3,6 +3,7 @@
 
 import webpush from 'npm:web-push@3.6.7'
 import { digestMessage, localClock, toWallClock } from './digest.ts'
+import { categoryForSpecies, fertilizerStatus } from './fertilizer.ts'
 
 function assertEquals(a: unknown, b: unknown) {
   const x = JSON.stringify(a), y = JSON.stringify(b)
@@ -152,4 +153,33 @@ Deno.test('texte du récapitulatif', () => {
   assertEquals(digestMessage(['Fougère'], []), { title: 'Fougère a soif', body: "Son arrosage est en retard. Un petit verre d'eau ?" })
   assertEquals(digestMessage([], ['Ficus'])?.body, "C'est le jour de l'arroser.")
   assertEquals(digestMessage(['A', 'B'], ['C', 'D', 'E'])?.body, "À arroser aujourd'hui : A, B, C et 2 autres.")
+})
+
+Deno.test('texte du récapitulatif avec engrais', () => {
+  assertEquals(digestMessage([], [], ['Calathea']), { title: 'Engrais pour Calathea', body: "C'est le moment de lui donner de l'engrais." })
+  assertEquals(digestMessage(['Ficus'], [], ['Calathea', 'Ficus'])?.body, "Son arrosage est en retard. Un petit verre d'eau ? Engrais : Calathea et Ficus.")
+  assertEquals(digestMessage([], [], ['A', 'B'])?.title, '2 plantes attendent leur engrais')
+})
+
+Deno.test('catégorie d’engrais selon l’espèce', () => {
+  assertEquals(categoryForSpecies('Goeppertia roseopicta'), 'sensitive')
+  assertEquals(categoryForSpecies('Aphelandra squarrosa Nees'), 'flowering')
+  assertEquals(categoryForSpecies('Dracaena trifasciata'), 'succulent')
+  assertEquals(categoryForSpecies('Dracaena marginata'), 'sensitive')
+  assertEquals(categoryForSpecies('Monstera deliciosa'), 'foliage')
+  assertEquals(categoryForSpecies(null), 'foliage')
+})
+
+Deno.test('échéance d’engrais', () => {
+  const plant = { species: 'Monstera deliciosa', fertilizer_category: null, sensor_mac: null, conductivity_min: 350, conductivity_max: 2000 }
+  const june = new Date(2026, 5, 15)
+  assertEquals(fertilizerStatus(plant, undefined, null, june).due, true)
+  assertEquals(fertilizerStatus(plant, new Date(2026, 5, 10), null, june).detail, 'Engrais dans 9 j')
+  assertEquals(fertilizerStatus(plant, new Date(2026, 5, 1), null, june).due, true)
+  assertEquals(fertilizerStatus(plant, undefined, null, new Date(2026, 11, 1)).detail, 'Pause hivernale jusqu’en avril')
+  const withSensor = { ...plant, sensor_mac: 'AA' }
+  assertEquals(fertilizerStatus(withSensor, undefined, 200, june).due, true)
+  assertEquals(fertilizerStatus(withSensor, undefined, 2500, june).excess, true)
+  assertEquals(fertilizerStatus(withSensor, undefined, 800, june).due, false)
+  assertEquals(fertilizerStatus({ ...plant, fertilizer_category: 'none' }, undefined, null, june).due, false)
 })

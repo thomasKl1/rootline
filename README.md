@@ -60,6 +60,10 @@ npm run dev                  # http://localhost:5173
 3. Pousse sur `main` : le workflow [`deploy.yml`](.github/workflows/deploy.yml) construit et publie l'app.
 4. Sur ton téléphone, ouvre l'adresse dans Chrome (ou Safari) et choisis **Ajouter à l'écran d'accueil**.
 
+## Engrais
+
+Chaque fiche plante indique l'engrais à utiliser (plantes vertes, plantes fleuries, cactus, orchidées, terre acide…), la dose et le rythme pendant la belle saison. La catégorie est déduite du genre botanique donné par Pl@ntNet (règles générales de jardinage, dans [`fertilizer.ts`](supabase/functions/notifications/fertilizer.ts)) et se change à la main. Le récapitulatif quotidien rappelle aussi les plantes qui attendent leur engrais ; avec un capteur, c'est la conductivité du sol qui décide.
+
 ## Partager avec la maison
 
 Dans **Réglages > Partage**, « Inviter quelqu'un » crée un lien valable 7 jours, utilisable une seule fois, à envoyer par message. La personne ouvre le lien, se connecte avec son e-mail et rejoint ton foyer : mêmes plantes, même plan, et chacun reçoit les rappels sur ses appareils. Le propriétaire du foyer peut retirer un membre ; un membre peut quitter le foyer.

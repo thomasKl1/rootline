@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from './supabase'
+import { fertilizerStatus, type FertilizerCategory } from './fertilizer'
 import type { FloorPlan, Orientation } from './plan'
 import { ROOMS, type EventKind, type Plant, type Reading, type WaterEvent } from './types'
 
@@ -19,7 +20,12 @@ export type NewPlant = {
 
 /** Champs modifiables d'une plante : ceux de l'ajout, plus son emplacement sur le plan. */
 export type PlantUpdate = Partial<
-  NewPlant & { window_orientation: Orientation | null; map_x: number | null; map_y: number | null }
+  NewPlant & {
+    window_orientation: Orientation | null
+    map_x: number | null
+    map_y: number | null
+    fertilizer_category: FertilizerCategory | null
+  }
 >
 
 export type Household = {
@@ -37,6 +43,7 @@ type GardenState = {
   household: Household | null
   plants: Plant[]
   lastWatered: Map<string, Date>
+  lastFertilized: Map<string, Date>
   latestReading: Map<string, Reading>
   /** URL temporaire (1 h) de la photo de chaque plante, par id de plante. */
   photoUrls: Map<string, string>
@@ -49,6 +56,7 @@ const initial: GardenState = {
   household: null,
   plants: [],
   lastWatered: new Map(),
+  lastFertilized: new Map(),
   latestReading: new Map(),
   photoUrls: new Map(),
 }
@@ -96,11 +104,11 @@ export function useGarden() {
       supabase.from('plants').select('*').eq('household_id', householdId).is('archived_at', null).order('name'),
       supabase
         .from('events')
-        .select('id, plant_id, occurred_at, source')
+        .select('id, plant_id, occurred_at, source, kind')
         .eq('household_id', householdId)
-        .eq('kind', 'water')
+        .in('kind', ['water', 'fertilize'])
         .order('occurred_at', { ascending: false })
-        .limit(300),
+        .limit(600),
       supabase
         .from('readings')
         .select('sensor_mac, measured_at, moisture, conductivity, light, temperature, battery')
@@ -117,8 +125,10 @@ export function useGarden() {
 
     // Les résultats sont triés du plus récent au plus ancien : on garde le premier vu.
     const lastWatered = new Map<string, Date>()
-    for (const e of (events.data ?? []) as WaterEvent[]) {
-      if (!lastWatered.has(e.plant_id)) lastWatered.set(e.plant_id, new Date(e.occurred_at))
+    const lastFertilized = new Map<string, Date>()
+    for (const e of (events.data ?? []) as (WaterEvent & { kind: string })[]) {
+      const map = e.kind === 'fertilize' ? lastFertilized : lastWatered
+      if (!map.has(e.plant_id)) map.set(e.plant_id, new Date(e.occurred_at))
     }
     const latestReading = new Map<string, Reading>()
     for (const r of (readings.data ?? []) as Reading[]) {
@@ -133,6 +143,7 @@ export function useGarden() {
       household: household.data as Household,
       plants: plantList,
       lastWatered,
+      lastFertilized,
       latestReading,
       photoUrls: await signPhotos(plantList),
     })
@@ -232,4 +243,10 @@ export function useGarden() {
   const rooms = useMemo(() => (plan ? plan.rooms.map((r) => r.name) : ROOMS), [plan])
 
   return { ...state, plan, rooms, reload: load, updateHousehold, addPlant, updatePlant, deletePlant, addEvent, water, undoEvent }
+}
+
+/** Échéance d'engrais d'une plante, avec la dernière conductivité mesurée si elle a un capteur. */
+export function fertilizerFor(garden: ReturnType<typeof useGarden>, plant: Plant) {
+  const reading = plant.sensor_mac ? garden.latestReading.get(plant.sensor_mac) : undefined
+  return fertilizerStatus(plant, garden.lastFertilized.get(plant.id), reading?.conductivity)
 }

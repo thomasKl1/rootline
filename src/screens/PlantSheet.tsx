@@ -4,9 +4,10 @@ import { careForSpecies, type Care } from '../lib/identify'
 import { ORIENTATION_LABEL, roomOrientations } from '../lib/plan'
 import { computeStatus } from '../lib/status'
 import type { EventKind, Plant } from '../lib/types'
-import type { PlantUpdate, useGarden } from '../lib/useGarden'
+import { fertilizerFor, type PlantUpdate, type useGarden } from '../lib/useGarden'
 import { ConfirmDialog } from './ConfirmDialog'
 import { Curves } from './Curves'
+import { FertilizerCard } from './Fertilizer'
 import { History } from './History'
 import { applyCare, careOrigin, PlantFields, toPlantFields, valuesFromPlant, type PlantFormValues } from './PlantForm'
 
@@ -161,6 +162,8 @@ export function PlantSheet({ plant: initialPlant, garden, onClose, onDone, onToa
             </button>
           </form>
         )}
+
+        <FertilizerCard plant={plant} garden={garden} status={fertilizerFor(garden, plant)} />
 
         {plant.sensor_mac && !history.loading && (
           <Curves plant={plant} readings={history.readings} events={history.events} />

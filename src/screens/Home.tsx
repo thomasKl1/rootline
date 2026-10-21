@@ -1,9 +1,9 @@
 import { computeStatus, plural, URGENCY_LABEL, URGENCY_ORDER, type PlantStatus, type Urgency } from '../lib/status'
 import type { Plant } from '../lib/types'
-import type { useGarden } from '../lib/useGarden'
+import { fertilizerFor, type useGarden } from '../lib/useGarden'
 
 type Garden = ReturnType<typeof useGarden>
-type Row = { plant: Plant; status: PlantStatus }
+type Row = { plant: Plant; status: PlantStatus; feed: boolean }
 
 type Props = {
   garden: Garden
@@ -23,12 +23,14 @@ export function Home({ garden, firstName, onAdd, onWater, onOpen }: Props) {
       plant.sensor_mac ? garden.latestReading.get(plant.sensor_mac) : undefined,
       garden.lastWatered.get(plant.id),
     ),
+    feed: fertilizerFor(garden, plant).due,
   }))
   const groups = new Map<Urgency, Row[]>(URGENCY_ORDER.map((u) => [u, []]))
   for (const r of rows) groups.get(r.status.urgency)!.push(r)
 
   const thirsty = groups.get('late')!.length + groups.get('today')!.length
   const fine = rows.length - thirsty
+  const hungry = rows.filter((r) => r.feed).length
 
   return (
     <main className="screen">
@@ -40,6 +42,7 @@ export function Home({ garden, firstName, onAdd, onWater, onOpen }: Props) {
             {thirsty === 0
               ? 'Toutes tes plantes vont bien.'
               : `${plural(thirsty, 'plante')} ${thirsty > 1 ? 'ont' : 'a'} soif, ${fine} ${fine > 1 ? 'vont' : 'va'} bien.`}
+            {hungry > 0 && (hungry === 1 ? ' Une attend son engrais.' : ` ${hungry} attendent leur engrais.`)}
           </p>
         )}
       </header>
@@ -69,24 +72,26 @@ export function Home({ garden, firstName, onAdd, onWater, onOpen }: Props) {
             <h2 className={`group-title tone-${u}`}>{URGENCY_LABEL[u]}</h2>
             {u === 'ok' ? (
               <ul className="compact-list">
-                {list.map(({ plant, status }) => (
+                {list.map(({ plant, status, feed }) => (
                   <li key={plant.id}>
                     <button type="button" className="list-row" onClick={() => onOpen(plant)}>
                       <span className="name">{plant.name}</span>
                       <span className="muted">
                         {plant.room ? `${plant.room} · ` : ''}
                         {status.short}
+                        {feed && <span className="tone-today"> · engrais</span>}
                       </span>
                     </button>
                   </li>
                 ))}
               </ul>
             ) : (
-              list.map(({ plant, status }) => (
+              list.map(({ plant, status, feed }) => (
                 <PlantCard
                   key={plant.id}
                   plant={plant}
                   status={status}
+                  feed={feed}
                   photoUrl={garden.photoUrls.get(plant.id)}
                   onWater={() => onWater(plant)}
                   onOpen={() => onOpen(plant)}
@@ -103,11 +108,12 @@ export function Home({ garden, firstName, onAdd, onWater, onOpen }: Props) {
 function PlantCard(props: {
   plant: Plant
   status: PlantStatus
+  feed: boolean
   photoUrl: string | undefined
   onWater: () => void
   onOpen: () => void
 }) {
-  const { plant, status, photoUrl, onWater, onOpen } = props
+  const { plant, status, feed, photoUrl, onWater, onOpen } = props
   const u = status.urgency
   return (
     <article className="card plant-card">
@@ -137,6 +143,7 @@ function PlantCard(props: {
             </span>
           )}
           <span className={`small tone-${u}`}>{status.detail}</span>
+          {feed && <span className="small tone-today">Engrais à donner</span>}
         </span>
       </button>
       {status.manual && (
