@@ -209,6 +209,27 @@ export function useGarden() {
     [load],
   )
 
+  /**
+   * Remplace la photo d'une plante. Nouveau nom de fichier à chaque fois (<foyer>/<plante>-<date>.jpg),
+   * pour qu'aucun cache ne garde l'ancienne image ; l'ancien fichier est ensuite supprimé.
+   */
+  const changePhoto = useCallback(
+    async (plant: Plant, photo: Blob) => {
+      const path = `${plant.household_id}/${plant.id}-${Date.now()}.jpg`
+      const upload = await supabase.storage.from(PHOTO_BUCKET).upload(path, photo, { contentType: 'image/jpeg' })
+      if (upload.error) return upload.error.message
+      const { error } = await supabase.from('plants').update({ photo_path: path }).eq('id', plant.id)
+      if (error) {
+        await supabase.storage.from(PHOTO_BUCKET).remove([path])
+        return error.message
+      }
+      if (plant.photo_path && plant.photo_path !== path) await supabase.storage.from(PHOTO_BUCKET).remove([plant.photo_path])
+      await load()
+      return null
+    },
+    [load],
+  )
+
   /** Supprime la plante, son historique (en cascade dans la base) et sa photo. */
   const deletePlant = useCallback(
     async (plant: Plant) => {
@@ -250,7 +271,7 @@ export function useGarden() {
   const plan = state.household?.floor_plan ?? null
   const rooms = useMemo(() => (plan ? plan.rooms.map((r) => r.name) : ROOMS), [plan])
 
-  return { ...state, plan, rooms, reload: load, updateHousehold, addPlant, updatePlant, deletePlant, addEvent, water, undoEvent }
+  return { ...state, plan, rooms, reload: load, updateHousehold, addPlant, updatePlant, changePhoto, deletePlant, addEvent, water, undoEvent }
 }
 
 /** Échéance d'engrais d'une plante, avec la dernière conductivité mesurée si elle a un capteur. */

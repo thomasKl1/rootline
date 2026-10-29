@@ -1,10 +1,14 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import {
   acceptInvite,
   clearInvite,
+  dismissInvite,
   inviteUrl,
+  isDismissed,
+  myEmailInvitation,
   pendingInvite,
   previewInvite,
+  sendInviteEmail,
   shareLink,
   useSharing,
   type Invitation,
@@ -28,6 +32,7 @@ export function SharingCard({ garden, onToast }: { garden: Garden; onToast: (tex
   const [confirm, setConfirm] = useState<Pending | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [fresh, setFresh] = useState<string | null>(null) // lien qui vient d'être créé
+  const [email, setEmail] = useState('')
   const isOwner = sharing.me?.role === 'owner'
   const others = sharing.people.filter((p) => !p.is_me)
 
@@ -46,6 +51,30 @@ export function SharingCard({ garden, onToast }: { garden: Garden; onToast: (tex
     if (error || !invitation) return setError(error ?? "L'invitation n'a pas pu être créée.")
     setFresh(inviteUrl(invitation.token))
     await send(invitation.token)
+  }
+
+  async function inviteByEmail(e: FormEvent) {
+    e.preventDefault()
+    const address = email.trim().toLowerCase()
+    if (!address) return
+    if (sharing.people.some((p) => p.email.toLowerCase() === address)) return setError('Cette personne fait déjà partie du foyer.')
+    setBusy(true)
+    setError(null)
+    const { invitation, error } = await sharing.createInvitation(address)
+    setBusy(false)
+    if (error || !invitation) return setError(error ?? "L'invitation n'a pas pu être créée.")
+    setEmail('')
+    onToast(`Invitation envoyée à ${address}`)
+  }
+
+  async function resend(i: Invitation) {
+    if (!i.email) return void send(i.token)
+    setBusy(true)
+    setError(null)
+    const err = await sendInviteEmail(i.email, i.token)
+    setBusy(false)
+    if (err) setError(err)
+    else onToast(`E-mail renvoyé à ${i.email}`)
   }
 
   async function run() {
@@ -112,12 +141,12 @@ export function SharingCard({ garden, onToast }: { garden: Garden; onToast: (tex
             {sharing.invitations.map((i) => (
               <li key={i.id}>
                 <span className="person grow">
-                  <span>Lien d'invitation</span>
+                  <span>{i.email ? `Par e-mail à ${i.email}` : "Lien d'invitation"}</span>
                   <span className="small muted">Valable jusqu'au {new Date(i.expires_at).toLocaleDateString('fr-FR')}</span>
                 </span>
                 <span className="row">
-                  <button type="button" className="btn ghost pill" onClick={() => void send(i.token)} disabled={busy}>
-                    Envoyer
+                  <button type="button" className="btn ghost pill" onClick={() => void resend(i)} disabled={busy}>
+                    {i.email ? 'Renvoyer' : 'Envoyer'}
                   </button>
                   <button
                     type="button"
@@ -146,8 +175,30 @@ export function SharingCard({ garden, onToast }: { garden: Garden; onToast: (tex
         </div>
       )}
 
-      <button type="button" className="btn primary" onClick={invite} disabled={busy}>
-        {busy ? '…' : "Inviter quelqu'un"}
+      <form className="stack tight" onSubmit={inviteByEmail}>
+        <label className="field">
+          <span>Inviter par e-mail</span>
+          <input
+            type="email"
+            required
+            autoComplete="off"
+            inputMode="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="prenom@exemple.fr"
+          />
+        </label>
+        <button className="btn primary" disabled={busy || !email.trim()}>
+          {busy ? '…' : "Envoyer l'invitation"}
+        </button>
+        <span className="hint">
+          La personne reçoit l'e-mail de connexion de Rootline, avec un code. Elle ouvre l'app, saisit son adresse et ce
+          code, puis rejoint le foyer. L'invitation vaut 7 jours.
+        </span>
+      </form>
+
+      <button type="button" className="btn ghost" onClick={invite} disabled={busy}>
+        Inviter avec un lien à partager
       </button>
 
       {sharing.me && !isOwner && (
@@ -198,6 +249,7 @@ function label(p: Person) {
  */
 export function JoinInvite({ garden, onToast }: { garden: Garden; onToast: (text: string) => void }) {
   const [token, setToken] = useState<string | null>(() => pendingInvite())
+  const [fromEmail, setFromEmail] = useState(false) // invitation trouvée par l'adresse, pas par un lien
   const [preview, setPreview] = useState<InvitePreview | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -205,6 +257,20 @@ export function JoinInvite({ garden, onToast }: { garden: Garden; onToast: (text
   useEffect(() => {
     toastRef.current = onToast
   })
+
+  // Sans lien d'invitation : une invitation envoyée à l'adresse de la personne connectée ?
+  useEffect(() => {
+    if (token || garden.loading) return
+    let cancelled = false
+    void myEmailInvitation().then((found) => {
+      if (cancelled || !found || isDismissed(found.token)) return
+      setFromEmail(true)
+      setToken(found.token)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [token, garden.loading])
 
   useEffect(() => {
     if (!token) return
@@ -221,6 +287,7 @@ export function JoinInvite({ garden, onToast }: { garden: Garden; onToast: (text
   if (!token || !preview || garden.loading) return null
 
   function dismiss() {
+    if (fromEmail && token) dismissInvite(token)
     clearInvite()
     setToken(null)
   }

@@ -618,6 +618,9 @@ label.btn {
   object-fit: cover;
   border-radius: 16px;
 }
+.sheet-photo.is-busy {
+  opacity: 0.5;
+}
 .care-refresh {
   display: flex;
   flex-direction: column;

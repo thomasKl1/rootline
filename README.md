@@ -60,6 +60,10 @@ npm run dev                  # http://localhost:5173
 3. Pousse sur `main` : le workflow [`deploy.yml`](.github/workflows/deploy.yml) construit et publie l'app.
 4. Sur ton téléphone, ouvre l'adresse dans Chrome (ou Safari) et choisis **Ajouter à l'écran d'accueil**.
 
+## Photo d'une plante
+
+Dans la fiche d'une plante, « Reprendre la photo » ou « Choisir dans la galerie » remplace sa photo ; l'ancienne est supprimée du stockage.
+
 ## Capteurs et passerelle ESP32
 
 Les capteurs Flower Care (HHCCJCY01) diffusent leurs mesures en Bluetooth. Une carte ESP32 sous [ESPHome](https://esphome.io) les écoute et envoie toutes les 15 minutes l'humidité, l'engrais (conductivité), la lumière et la température à la fonction [`ingest-readings`](supabase/functions/ingest-readings/index.ts). La fonction range chaque mesure dans le foyer de la plante liée au capteur, et note un arrosage automatique quand l'humidité bondit d'au moins 10 points par rapport au point bas des 3 dernières heures (pas de doublon dans les 6 heures qui suivent un arrosage, manuel ou détecté). Les règles sont dans [`detect.ts`](supabase/functions/ingest-readings/detect.ts).
@@ -99,7 +103,12 @@ Les modèles Llama de Workers AI ne sont pas utilisés : leur licence exclut les
 
 ## Partager avec la maison
 
-Dans **Réglages > Partage**, « Inviter quelqu'un » crée un lien valable 7 jours, utilisable une seule fois, à envoyer par message. La personne ouvre le lien, se connecte avec son e-mail et rejoint ton foyer : mêmes plantes, même plan, et chacun reçoit les rappels sur ses appareils. Le propriétaire du foyer peut retirer un membre ; un membre peut quitter le foyer.
+Dans **Réglages > Partage**, deux façons d'inviter quelqu'un, valables 7 jours et une seule fois :
+
+- **Par e-mail** : saisis l'adresse de la personne. Elle reçoit l'e-mail de connexion de Rootline, avec un code ; dans l'app, elle saisit son adresse, touche « J'ai déjà reçu un code », tape le code, et l'invitation lui est proposée. Seule cette adresse peut l'accepter. Pour une personne qui n'a pas encore de compte, Supabase peut envoyer le modèle **Confirm signup** au lieu de **Magic Link** : ajoute-lui aussi le code (`{{ .Token }}`, voir l'étape 7 de l'installation).
+- **Par lien** : « Inviter avec un lien à partager » crée un lien à envoyer par message.
+
+Avec un lien, la personne ouvre le lien, se connecte avec son e-mail et rejoint ton foyer : mêmes plantes, même plan, et chacun reçoit les rappels sur ses appareils. Le propriétaire du foyer peut retirer un membre ; un membre peut quitter le foyer.
 
 Pour que le lien de connexion reçu par e-mail garde l'invitation, ajoute dans **Authentication > URL Configuration > Redirect URLs** l'adresse de ton app suivie de `**`, par ex. `https://<ton-compte>.github.io/rootline/**`.
 

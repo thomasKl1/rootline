@@ -1,6 +1,7 @@
-import { useState, type FormEvent } from 'react'
+import { useState, type ChangeEvent, type FormEvent } from 'react'
 import { buildContext } from '../lib/diagnose'
 import { usePlantHistory } from '../lib/history'
+import { prepareImage } from '../lib/image'
 import { useSwipeToClose } from '../lib/useSwipeToClose'
 import { careForSpecies, type Care } from '../lib/identify'
 import { ORIENTATION_LABEL, roomOrientations } from '../lib/plan'
@@ -34,7 +35,7 @@ export function PlantSheet({ plant: initialPlant, garden, onClose, onDone, onToa
 
   const [values, setValues] = useState<PlantFormValues>(() => valuesFromPlant(plant))
   const [refreshed, setRefreshed] = useState<Care | null>(null)
-  const [busy, setBusy] = useState<'save' | 'care' | 'delete' | EventKind | null>(null)
+  const [busy, setBusy] = useState<'save' | 'care' | 'delete' | 'photo' | EventKind | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [noteOpen, setNoteOpen] = useState(false)
   const [note, setNote] = useState('')
@@ -62,6 +63,24 @@ export function PlantSheet({ plant: initialPlant, garden, onClose, onDone, onToa
       setNoteOpen(false)
     }
     onToast(kind === 'water' ? `${plant.name} : arrosage noté` : kind === 'fertilize' ? `${plant.name} : engrais noté` : 'Note ajoutée', id)
+  }
+
+  async function onPhoto(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = '' // permet de reprendre la même photo après une erreur
+    if (!file) return
+    setBusy('photo')
+    setError(null)
+    try {
+      const { blob } = await prepareImage(file)
+      const err = await garden.changePhoto(plant, blob)
+      if (err) setError(err)
+      else onToast(`${plant.name} : photo mise à jour`, null)
+    } catch {
+      setError("Cette image n'a pas pu être lue. Essaie avec une autre photo.")
+    } finally {
+      setBusy(null)
+    }
   }
 
   async function refreshCare() {
@@ -114,7 +133,17 @@ export function PlantSheet({ plant: initialPlant, garden, onClose, onDone, onToa
         aria-labelledby="plant-title"
       >
         <div className="grabber" aria-hidden="true" />
-        {photo && <img src={photo} alt="" className="sheet-photo" />}
+        {photo && <img src={photo} alt="" className={`sheet-photo${busy === 'photo' ? ' is-busy' : ''}`} />}
+        <div className="row">
+          <label className={`btn ghost grow center${busy !== null ? ' disabled' : ''}`}>
+            <input type="file" accept="image/*" capture="environment" onChange={onPhoto} className="visually-hidden" disabled={busy !== null} />
+            {busy === 'photo' ? 'Envoi de la photo…' : photo ? 'Reprendre la photo' : 'Prendre une photo'}
+          </label>
+          <label className={`btn ghost grow center${busy !== null ? ' disabled' : ''}`}>
+            <input type="file" accept="image/*" onChange={onPhoto} className="visually-hidden" disabled={busy !== null} />
+            Choisir dans la galerie
+          </label>
+        </div>
 
         <div>
           <h2 id="plant-title" className="display small">

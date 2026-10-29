@@ -11,6 +11,7 @@ export function Login() {
   const [email, setEmail] = useState('')
   const [code, setCode] = useState('')
   const [step, setStep] = useState<'email' | 'code'>('email')
+  const [sent, setSent] = useState(false) // e-mail demandé ici (sinon : code déjà reçu, par exemple avec une invitation)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [invite, setInvite] = useState<InvitePreview | null>(null)
@@ -33,7 +34,18 @@ export function Login() {
     })
     setBusy(false)
     if (error) setError(traduire(error.message))
-    else setStep('code')
+    else {
+      setSent(true)
+      setStep('code')
+    }
+  }
+
+  /** Code déjà reçu (invitation par e-mail, ou e-mail demandé plus tôt) : pas de nouvel envoi. */
+  function haveCode() {
+    if (!/^\S+@\S+\.\S+$/.test(email.trim())) return setError("Saisis d'abord l'adresse e-mail qui a reçu le code.")
+    setError(null)
+    setSent(false)
+    setStep('code')
   }
 
   async function verifyCode(e: FormEvent) {
@@ -80,13 +92,22 @@ export function Login() {
           <button className="btn primary" disabled={busy}>
             {busy ? 'Envoi…' : 'Recevoir un lien de connexion'}
           </button>
-          <p className="hint">Pas de mot de passe : tu reçois un e-mail, et c'est tout.</p>
+          <button type="button" className="btn ghost" onClick={haveCode} disabled={busy}>
+            J'ai déjà reçu un code
+          </button>
+          <p className="hint">Pas de mot de passe : tu reçois un e-mail, et c'est tout. Invité par e-mail ? Saisis ton adresse, puis « J'ai déjà reçu un code ».</p>
         </form>
       ) : (
         <form onSubmit={verifyCode} className="stack">
-          <p>
-            E-mail envoyé à <strong>{email}</strong>. Clique sur le lien qu'il contient, ou saisis le code ici.
-          </p>
+          {sent ? (
+            <p>
+              E-mail envoyé à <strong>{email}</strong>. Clique sur le lien qu'il contient, ou saisis le code ici.
+            </p>
+          ) : (
+            <p>
+              Saisis le code reçu par e-mail à <strong>{email}</strong>.
+            </p>
+          )}
           <label className="field">
             <span>Code reçu par e-mail</span>
             <input

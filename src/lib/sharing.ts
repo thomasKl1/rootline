@@ -67,6 +67,7 @@ const ACCEPT_ERRORS: Record<string, string> = {
   has_plants:
     'Ton compte suit déjà ses propres plantes. Supprime-les d’abord, ou connecte-toi avec une autre adresse pour rejoindre ce foyer.',
   has_members: 'Tu partages déjà ton foyer avec quelqu’un : retire ses membres avant de rejoindre un autre foyer.',
+  wrong_email: 'Cette invitation a été envoyée à une autre adresse e-mail. Connecte-toi avec celle-ci pour la rejoindre.',
   not_allowed: "Tu n'as pas le droit de faire cela.",
   owner_cannot_leave: 'Tu es le propriétaire de ce foyer : tu ne peux pas le quitter.',
 }
@@ -75,6 +76,46 @@ const ACCEPT_ERRORS: Record<string, string> = {
 export function sharingError(message: string) {
   const code = Object.keys(ACCEPT_ERRORS).find((k) => message.includes(k))
   return code ? ACCEPT_ERRORS[code] : message
+}
+
+/** Invitation par e-mail adressée à la personne connectée, encore valable (jeton et nom de l'hôte). */
+export async function myEmailInvitation(): Promise<{ token: string; inviter: string | null } | null> {
+  const { data, error } = await supabase.rpc('my_email_invitation')
+  const row = !error && Array.isArray(data) ? data[0] : null
+  return row ? { token: row.token, inviter: row.inviter ?? null } : null
+}
+
+// Invitation par e-mail refusée (« Non merci ») : on ne la repropose pas à chaque ouverture.
+const DISMISSED = 'rootline-invite-dismissed'
+
+export function isDismissed(token: string) {
+  try {
+    return localStorage.getItem(DISMISSED) === token
+  } catch {
+    return false
+  }
+}
+
+export function dismissInvite(token: string) {
+  try {
+    localStorage.setItem(DISMISSED, token)
+  } catch {
+    // Navigation privée : l'invitation sera reproposée, rien de grave.
+  }
+}
+
+/**
+ * Envoie à la personne invitée l'e-mail de connexion de Rootline (lien + code). Le lien rapporte
+ * l'invitation ; avec le code, la personne se connecte dans l'app et l'invitation lui est proposée.
+ */
+export async function sendInviteEmail(email: string, token: string): Promise<string | null> {
+  const { error } = await supabase.auth.signInWithOtp({
+    email,
+    options: { shouldCreateUser: true, emailRedirectTo: inviteUrl(token) },
+  })
+  if (!error) return null
+  if (/rate limit|security purposes/i.test(error.message)) return 'Trop d’e-mails envoyés à la suite. Patiente une minute avant de réessayer.'
+  return error.message
 }
 
 export async function acceptInvite(token: string): Promise<string | null> {
@@ -95,7 +136,7 @@ export type Person = {
   is_me: boolean
 }
 
-export type Invitation = { id: string; token: string; created_at: string; expires_at: string }
+export type Invitation = { id: string; token: string; created_at: string; expires_at: string; email: string | null }
 
 /** Personnes du foyer et invitations encore valables. `version` change à chaque rechargement du jardin. */
 export function useSharing(householdId: string | null, version: unknown) {
@@ -109,7 +150,7 @@ export function useSharing(householdId: string | null, version: unknown) {
       supabase.rpc('household_people'),
       supabase
         .from('invitations')
-        .select('id, token, created_at, expires_at')
+        .select('id, token, created_at, expires_at, email')
         .eq('household_id', householdId)
         .is('accepted_at', null)
         .gt('expires_at', new Date().toISOString())
@@ -124,16 +165,28 @@ export function useSharing(householdId: string | null, version: unknown) {
     void load()
   }, [load, version])
 
-  const createInvitation = useCallback(async () => {
-    if (!householdId) return { invitation: null, error: 'Foyer introuvable.' }
-    const { data, error } = await supabase
-      .from('invitations')
-      .insert({ household_id: householdId })
-      .select('id, token, created_at, expires_at')
-      .single()
-    await load()
-    return { invitation: (data as Invitation | null) ?? null, error: error?.message ?? null }
-  }, [householdId, load])
+  /** Crée une invitation : par lien (sans e-mail), ou pour une adresse, à qui l'e-mail est aussitôt envoyé. */
+  const createInvitation = useCallback(
+    async (email?: string) => {
+      if (!householdId) return { invitation: null, error: 'Foyer introuvable.' }
+      const address = email?.trim().toLowerCase() || null
+      const { data, error } = await supabase
+        .from('invitations')
+        .insert({ household_id: householdId, email: address })
+        .select('id, token, created_at, expires_at, email')
+        .single()
+      const invitation = (data as Invitation | null) ?? null
+      let sendError: string | null = null
+      if (invitation && address) {
+        sendError = await sendInviteEmail(address, invitation.token)
+        // E-mail non parti : l'invitation ne servirait à rien, on la retire.
+        if (sendError) await supabase.from('invitations').delete().eq('id', invitation.id)
+      }
+      await load()
+      return { invitation: sendError ? null : invitation, error: error?.message ?? sendError }
+    },
+    [householdId, load],
+  )
 
   const cancelInvitation = useCallback(
     async (id: string) => {
