@@ -16,6 +16,14 @@ export type NewPlant = {
   light_min: number | null
   interval_summer_days: number | null
   interval_winter_days: number | null
+  /** Adresse du capteur Flower Care lié (AA:BB:CC:DD:EE:FF), ou null. */
+  sensor_mac: string | null
+}
+
+/** Message lisible pour les erreurs de la base qu'on sait expliquer. */
+function plantError(error: { code?: string; message: string }) {
+  if (error.code === '23505' && error.message.includes('sensor_mac')) return 'Ce capteur est déjà associé à une autre plante.'
+  return error.message
 }
 
 /** Champs modifiables d'une plante : ceux de l'ajout, plus son emplacement sur le plan. */
@@ -163,7 +171,7 @@ export function useGarden() {
         .insert({ ...p, household_id: householdId })
         .select('id')
         .single()
-      if (error) return error.message
+      if (error) return plantError(error)
 
       if (photo) {
         const path = `${householdId}/${data.id}.jpg`
@@ -194,7 +202,7 @@ export function useGarden() {
   const updatePlant = useCallback(
     async (id: string, fields: PlantUpdate) => {
       const { error } = await supabase.from('plants').update(fields).eq('id', id)
-      if (error) return error.message
+      if (error) return plantError(error)
       await load()
       return null
     },

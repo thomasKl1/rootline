@@ -19,10 +19,18 @@ export type PlantFormValues = {
   ecMin: Num
   ecMax: Num
   lightMin: Num
+  /** Adresse du capteur, telle que saisie ('' = pas de capteur). */
+  sensor: string
 }
 
 const orEmpty = (v: number | null | undefined): Num => (v == null ? '' : v)
 const orNull = (v: Num) => (v === '' ? null : v)
+
+/** Adresse de capteur au format AA:BB:CC:DD:EE:FF (minuscules et tirets acceptés à la saisie). */
+export function normalizeMac(v: string): string | null {
+  const mac = v.trim().toUpperCase().replaceAll('-', ':')
+  return /^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(mac) ? mac : null
+}
 
 export function valuesFromCare(name: string, care: Care | null | undefined): PlantFormValues {
   return {
@@ -35,6 +43,7 @@ export function valuesFromCare(name: string, care: Care | null | undefined): Pla
     ecMin: orEmpty(care?.conductivity_min),
     ecMax: orEmpty(care?.conductivity_max),
     lightMin: orEmpty(care?.light_min),
+    sensor: '',
   }
 }
 
@@ -49,13 +58,14 @@ export function valuesFromPlant(p: Plant): PlantFormValues {
     ecMin: orEmpty(p.conductivity_min),
     ecMax: orEmpty(p.conductivity_max),
     lightMin: orEmpty(p.light_min),
+    sensor: p.sensor_mac ?? '',
   }
 }
 
 /** Remplace les besoins (fréquences et seuils) par ceux d'Open Plantbook, sans toucher au nom ni à la pièce. */
 export function applyCare(v: PlantFormValues, care: Care): PlantFormValues {
   const fresh = valuesFromCare(v.name, care)
-  return { ...fresh, name: v.name, room: v.room }
+  return { ...fresh, name: v.name, room: v.room, sensor: v.sensor }
 }
 
 export function toPlantFields(v: PlantFormValues): Omit<NewPlant, 'species' | 'species_common'> {
@@ -69,6 +79,7 @@ export function toPlantFields(v: PlantFormValues): Omit<NewPlant, 'species' | 's
     conductivity_min: orNull(v.ecMin),
     conductivity_max: orNull(v.ecMax),
     light_min: orNull(v.lightMin),
+    sensor_mac: normalizeMac(v.sensor),
   }
 }
 
@@ -117,6 +128,21 @@ export function PlantFields({ values, onChange }: { values: PlantFormValues; onC
           <NumberField label="Hiver (oct.–mars)" value={values.winter} min={1} max={90} unit="j" onChange={(v) => set('winter', v === '' ? 1 : v)} />
         </div>
       </fieldset>
+
+      <label className="field">
+        <span>Capteur Flower Care</span>
+        <input
+          value={values.sensor}
+          onChange={(e) => set('sensor', e.target.value)}
+          placeholder="Aucun (ex. 5C:85:7E:14:9C:6D)"
+          autoCapitalize="characters"
+          autoComplete="off"
+          spellCheck={false}
+          pattern="[0-9A-Fa-f]{2}([:\-][0-9A-Fa-f]{2}){5}"
+          title="Adresse du capteur, au format 5C:85:7E:14:9C:6D"
+        />
+        <span className="hint">L'adresse relevée au scan de la passerelle. Laisse vide si la plante n'a pas de capteur.</span>
+      </label>
 
       <details className="card pad-card thresholds">
         <summary>

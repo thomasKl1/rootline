@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Passerelle ESP32 : secrets et fichiers de compilation ESPHome
+esp32/secrets.yaml
+esp32/.esphome/

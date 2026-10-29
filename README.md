@@ -11,7 +11,7 @@
 | 1 | Squelette : web app installable, connexion par e-mail, base de données | ✅ |
 | 2 | Plantes : photo, identification Pl@ntNet, seuils Open Plantbook | ✅ |
 | 3 | Rappels et notifications push | ✅ |
-| 4 | Capteurs Flower Care + passerelle ESP32, détection automatique de l'arrosage | à venir |
+| 4 | Capteurs Flower Care + passerelle ESP32, détection automatique de l'arrosage | en cours |
 | 5 | Plan de l'appartement, historique, courbes | ✅ |
 
 ## Pile technique
@@ -59,6 +59,27 @@ npm run dev                  # http://localhost:5173
    - `VITE_SUPABASE_PUBLISHABLE_KEY`
 3. Pousse sur `main` : le workflow [`deploy.yml`](.github/workflows/deploy.yml) construit et publie l'app.
 4. Sur ton téléphone, ouvre l'adresse dans Chrome (ou Safari) et choisis **Ajouter à l'écran d'accueil**.
+
+## Capteurs et passerelle ESP32
+
+Les capteurs Flower Care (HHCCJCY01) diffusent leurs mesures en Bluetooth. Une carte ESP32 sous [ESPHome](https://esphome.io) les écoute et envoie toutes les 15 minutes l'humidité, l'engrais (conductivité), la lumière et la température à la fonction [`ingest-readings`](supabase/functions/ingest-readings/index.ts). La fonction range chaque mesure dans le foyer de la plante liée au capteur, et note un arrosage automatique quand l'humidité bondit d'au moins 10 points par rapport au point bas des 3 dernières heures (pas de doublon dans les 6 heures qui suivent un arrosage, manuel ou détecté). Les règles sont dans [`detect.ts`](supabase/functions/ingest-readings/detect.ts).
+
+### 1. Supabase
+
+1. Crée un jeton : `openssl rand -hex 32`.
+2. Dans **Edge Functions > Secrets**, ajoute-le sous le nom `INGEST_TOKEN`.
+3. Déploie la fonction : `npx supabase functions deploy ingest-readings --no-verify-jwt --project-ref <ton-projet>` (la passerelle n'a pas de compte : elle s'authentifie avec le jeton, dans l'en-tête `x-ingest-token`).
+
+### 2. La passerelle
+
+1. Installe ESPHome (Python 3.11 ou plus) : `python3 -m venv .venv && source .venv/bin/activate && pip install esphome`.
+2. Dans [`esp32/`](esp32/), copie `secrets.example.yaml` en `secrets.yaml` (ignoré par git) : WiFi **2,4 GHz**, adresse de la fonction et jeton.
+3. Remplace les adresses des capteurs dans [`esp32/rootline.yaml`](esp32/rootline.yaml) par les tiennes. Pour les trouver, un scan Bluetooth ESPHome (`esp32_ble_tracker` avec `on_ble_advertise`) affiche les appareils nommés « Flower care » ; colle-les un par un contre la carte pour savoir lequel est lequel (le plus proche a le signal le plus fort).
+4. Branche la carte en USB et lance `esphome run rootline.yaml`. Les journaux affichent les mesures reçues, puis « mesures envoyées (HTTP 200) » à chaque envoi.
+
+### 3. Dans l'app
+
+Dans la fiche de chaque plante, renseigne l'adresse de son capteur (champ **Capteur Flower Care**). Les mesures d'un capteur lié à aucune plante sont ignorées. Les capteurs récents (firmware 3.2.1) n'envoient plus le niveau de pile.
 
 ## Engrais
 

@@ -1,0 +1,193 @@
+# Rootline — passerelle ESP32 (ESPHome)
+#
+# Écoute les capteurs Flower Care (HHCCJCY01) en Bluetooth et envoie leurs mesures toutes les
+# 15 minutes à la fonction Supabase `ingest-readings`, qui les range dans le foyer de la plante liée
+# au capteur et détecte les arrosages.
+#
+# Utilisation : copie secrets.example.yaml en secrets.yaml (jamais commité), remplis-le, puis
+#   esphome run rootline.yaml
+#
+# Pour ajouter un capteur : relève son adresse (scan Bluetooth), ajoute un bloc dans `sensor:`
+# et une ligne dans le corps de la requête, puis renseigne l'adresse dans la fiche de la plante.
+
+esphome:
+  name: rootline-passerelle
+
+esp32:
+  board: esp32dev
+
+logger:
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+ota:
+  - platform: esphome
+
+# Les capteurs diffusent leurs mesures d'eux-mêmes : pas de connexion, juste l'écoute.
+esp32_ble_tracker:
+
+http_request:
+  timeout: 10s
+
+sensor:
+  # --- Calathea ---
+  - platform: xiaomi_hhccjcy01
+    mac_address: "5C:85:7E:14:9C:6D"
+    temperature:
+      name: "Calathea température"
+      id: calathea_temperature
+      filters:
+        - timeout: 30min  # capteur muet : la valeur repasse à NaN, envoyée comme null
+    moisture:
+      name: "Calathea humidité"
+      id: calathea_humidite
+      filters:
+        - timeout: 30min  # capteur muet : la valeur repasse à NaN, envoyée comme null
+    illuminance:
+      name: "Calathea lumière"
+      id: calathea_lumiere
+      filters:
+        - timeout: 30min  # capteur muet : la valeur repasse à NaN, envoyée comme null
+    conductivity:
+      name: "Calathea conductivité"
+      id: calathea_conductivite
+      filters:
+        - timeout: 30min  # capteur muet : la valeur repasse à NaN, envoyée comme null
+    battery_level:
+      name: "Calathea pile"
+      id: calathea_pile
+      filters:
+        - timeout: 30min  # capteur muet : la valeur repasse à NaN, envoyée comme null
+
+  # --- Ape ---
+  - platform: xiaomi_hhccjcy01
+    mac_address: "5C:85:7E:14:74:B1"
+    temperature:
+      name: "Ape température"
+      id: ape_temperature
+      filters:
+        - timeout: 30min  # capteur muet : la valeur repasse à NaN, envoyée comme null
+    moisture:
+      name: "Ape humidité"
+      id: ape_humidite
+      filters:
+        - timeout: 30min  # capteur muet : la valeur repasse à NaN, envoyée comme null
+    illuminance:
+      name: "Ape lumière"
+      id: ape_lumiere
+      filters:
+        - timeout: 30min  # capteur muet : la valeur repasse à NaN, envoyée comme null
+    conductivity:
+      name: "Ape conductivité"
+      id: ape_conductivite
+      filters:
+        - timeout: 30min  # capteur muet : la valeur repasse à NaN, envoyée comme null
+    battery_level:
+      name: "Ape pile"
+      id: ape_pile
+      filters:
+        - timeout: 30min  # capteur muet : la valeur repasse à NaN, envoyée comme null
+
+  # --- Aphelandra ---
+  - platform: xiaomi_hhccjcy01
+    mac_address: "5C:85:7E:14:9B:35"
+    temperature:
+      name: "Aphelandra température"
+      id: aphelandra_temperature
+      filters:
+        - timeout: 30min  # capteur muet : la valeur repasse à NaN, envoyée comme null
+    moisture:
+      name: "Aphelandra humidité"
+      id: aphelandra_humidite
+      filters:
+        - timeout: 30min  # capteur muet : la valeur repasse à NaN, envoyée comme null
+    illuminance:
+      name: "Aphelandra lumière"
+      id: aphelandra_lumiere
+      filters:
+        - timeout: 30min  # capteur muet : la valeur repasse à NaN, envoyée comme null
+    conductivity:
+      name: "Aphelandra conductivité"
+      id: aphelandra_conductivite
+      filters:
+        - timeout: 30min  # capteur muet : la valeur repasse à NaN, envoyée comme null
+    battery_level:
+      name: "Aphelandra pile"
+      id: aphelandra_pile
+      filters:
+        - timeout: 30min  # capteur muet : la valeur repasse à NaN, envoyée comme null
+
+  # --- Monstera ---
+  - platform: xiaomi_hhccjcy01
+    mac_address: "5C:85:7E:14:9D:92"
+    temperature:
+      name: "Monstera température"
+      id: monstera_temperature
+      filters:
+        - timeout: 30min  # capteur muet : la valeur repasse à NaN, envoyée comme null
+    moisture:
+      name: "Monstera humidité"
+      id: monstera_humidite
+      filters:
+        - timeout: 30min  # capteur muet : la valeur repasse à NaN, envoyée comme null
+    illuminance:
+      name: "Monstera lumière"
+      id: monstera_lumiere
+      filters:
+        - timeout: 30min  # capteur muet : la valeur repasse à NaN, envoyée comme null
+    conductivity:
+      name: "Monstera conductivité"
+      id: monstera_conductivite
+      filters:
+        - timeout: 30min  # capteur muet : la valeur repasse à NaN, envoyée comme null
+    battery_level:
+      name: "Monstera pile"
+      id: monstera_pile
+      filters:
+        - timeout: 30min  # capteur muet : la valeur repasse à NaN, envoyée comme null
+
+interval:
+  - interval: 15min
+    then:
+      - if:
+          condition:
+            wifi.connected:
+          then:
+            - http_request.post:
+                url: !secret ingest_url
+                request_headers:
+                  Content-Type: application/json
+                  x-ingest-token: !secret ingest_token
+                body: !lambda |-
+                  // Valeur absente (NaN) → null, pour un JSON valide.
+                  auto num = [](float x) -> std::string {
+                    if (std::isnan(x)) return "null";
+                    char buf[16];
+                    snprintf(buf, sizeof(buf), "%.1f", x);
+                    return buf;
+                  };
+                  auto plante = [&](const char *mac, float m, float c, float l, float t, float b) -> std::string {
+                    return std::string("{\"sensor_mac\":\"") + mac + "\",\"moisture\":" + num(m) +
+                      ",\"conductivity\":" + num(c) + ",\"light\":" + num(l) +
+                      ",\"temperature\":" + num(t) + ",\"battery\":" + num(b) + "}";
+                  };
+                  return std::string("{\"readings\":[") +
+                  plante("5C:85:7E:14:9C:6D", id(calathea_humidite).state, id(calathea_conductivite).state,
+                    id(calathea_lumiere).state, id(calathea_temperature).state, id(calathea_pile).state) + "," +
+                  plante("5C:85:7E:14:74:B1", id(ape_humidite).state, id(ape_conductivite).state,
+                    id(ape_lumiere).state, id(ape_temperature).state, id(ape_pile).state) + "," +
+                  plante("5C:85:7E:14:9B:35", id(aphelandra_humidite).state, id(aphelandra_conductivite).state,
+                    id(aphelandra_lumiere).state, id(aphelandra_temperature).state, id(aphelandra_pile).state) + "," +
+                  plante("5C:85:7E:14:9D:92", id(monstera_humidite).state, id(monstera_conductivite).state,
+                    id(monstera_lumiere).state, id(monstera_temperature).state, id(monstera_pile).state) +
+                    "]}";
+                on_response:
+                  then:
+                    - logger.log:
+                        format: "Rootline : mesures envoyées (HTTP %d)"
+                        args: ["response->status_code"]
+                on_error:
+                  then:
+                    - logger.log: "Rootline : échec de l'envoi des mesures"
