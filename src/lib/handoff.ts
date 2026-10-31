@@ -25,7 +25,7 @@ export const needsHandoff = isIOS && isStandalone
 const SEP = '~'
 
 /**
- * Copie la clé de la session Safari, puis déconnecte Safari localement :
+ * Copie la clé de la session Safari, puis fait oublier la session à Safari :
  * Safari ne doit plus utiliser ce jeton, sinon Supabase y verrait une
  * réutilisation et fermerait aussi la session de l'app.
  */
@@ -40,9 +40,24 @@ export async function copyHandoffKey(onCopied: () => void): Promise<string | nul
     return 'Copie impossible. Réessaie en touchant le bouton.'
   }
   clearInvite()
-  onCopied() // avant la déconnexion, pour passer directement à l'écran « Clé copiée »
-  await supabase.auth.signOut({ scope: 'local' })
+  onCopied() // avant d'oublier la session, pour passer directement à l'écran « Clé copiée »
+  forgetSessionLocally()
   return null
+}
+
+/**
+ * Oublie la session dans Safari SANS prévenir Supabase : signOut(), même en
+ * scope « local », révoque la session côté serveur, donc la clé copiée avec.
+ */
+function forgetSessionLocally() {
+  void supabase.auth.stopAutoRefresh()
+  try {
+    for (const k of Object.keys(localStorage)) {
+      if (/^sb-.*-auth-token/.test(k)) localStorage.removeItem(k)
+    }
+  } catch {
+    // Stockage indisponible : rien à oublier.
+  }
 }
 
 /** Dans l'app : ouvre la session à partir de la clé copiée dans Safari. */
