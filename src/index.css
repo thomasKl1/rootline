@@ -1182,3 +1182,10 @@ html.sheet-open body {
 .sheet-backdrop .sheet {
   touch-action: pan-y;
 }
+
+/* Étapes du transfert de connexion Safari → app (iPhone) */
+.handoff-steps {
+  margin: 0;
+  padding-left: 1.25rem;
+  line-height: 1.6;
+}

@@ -13,17 +13,21 @@ export function captureInviteFromUrl() {
   const url = new URL(window.location.href)
   const token = url.searchParams.get('invite')
   if (!token) return
+  storeInvite(token)
+  url.searchParams.delete('invite')
+  window.history.replaceState(null, '', url.pathname + url.search + url.hash)
+}
+
+let memoryToken: string | null = null
+
+export function storeInvite(token: string) {
   try {
     localStorage.setItem(KEY, token)
   } catch {
     // Navigation privée : l'invitation sera perdue si la page se recharge, rien de grave.
     memoryToken = token
   }
-  url.searchParams.delete('invite')
-  window.history.replaceState(null, '', url.pathname + url.search + url.hash)
 }
-
-let memoryToken: string | null = null
 
 export function pendingInvite(): string | null {
   try {

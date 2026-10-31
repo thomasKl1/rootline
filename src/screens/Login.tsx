@@ -1,16 +1,19 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { needsHandoff, redeemHandoffKey } from '../lib/handoff'
 import { pendingInvite, previewInvite, type InvitePreview } from '../lib/sharing'
 import { supabase } from '../lib/supabase'
 
 /**
  * Connexion sans mot de passe : Supabase envoie un e-mail contenant un lien et un code.
  * Le code permet de se connecter directement dans l'app installée (utile sur iPhone,
- * où le lien s'ouvre dans Safari et non dans l'app).
+ * où le lien s'ouvre dans Safari et non dans l'app). Sans code dans l'e-mail, Safari donne
+ * une clé à coller ici (voir lib/handoff.ts).
  */
 export function Login() {
   const [email, setEmail] = useState('')
   const [code, setCode] = useState('')
-  const [step, setStep] = useState<'email' | 'code'>('email')
+  const [key, setKey] = useState('')
+  const [step, setStep] = useState<'email' | 'code' | 'transfer'>('email')
   const [sent, setSent] = useState(false) // e-mail demandé ici (sinon : code déjà reçu, par exemple avec une invitation)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -36,7 +39,8 @@ export function Login() {
     if (error) setError(traduire(error.message))
     else {
       setSent(true)
-      setStep('code')
+      // iPhone, app installée : le lien s'ouvrira dans Safari, qui donnera une clé à coller ici.
+      setStep(needsHandoff ? 'transfer' : 'code')
     }
   }
 
@@ -55,6 +59,25 @@ export function Login() {
     const { error } = await supabase.auth.verifyOtp({ email: email.trim(), token: code.trim(), type: 'email' })
     setBusy(false)
     if (error) setError(traduire(error.message))
+  }
+
+  async function pasteKey() {
+    setError(null)
+    try {
+      const text = await navigator.clipboard.readText()
+      setKey(text.trim())
+      if (text.trim()) await submitKey(text)
+    } catch {
+      setError('Collage refusé : appuie longuement dans le champ puis « Coller ».')
+    }
+  }
+
+  async function submitKey(raw: string) {
+    setBusy(true)
+    setError(null)
+    const err = await redeemHandoffKey(raw)
+    setBusy(false)
+    if (err) setError(err)
   }
 
   return (
@@ -95,7 +118,51 @@ export function Login() {
           <button type="button" className="btn ghost" onClick={haveCode} disabled={busy}>
             J'ai déjà reçu un code
           </button>
+          {needsHandoff && (
+            <button type="button" className="btn ghost" onClick={() => setStep('transfer')} disabled={busy}>
+              Coller la clé de Safari
+            </button>
+          )}
           <p className="hint">Pas de mot de passe : tu reçois un e-mail, et c'est tout. Invité par e-mail ? Saisis ton adresse, puis « J'ai déjà reçu un code ».</p>
+        </form>
+      ) : step === 'transfer' ? (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            void submitKey(key)
+          }}
+          className="stack"
+        >
+          {sent ? (
+            <p>
+              E-mail envoyé à <strong>{email}</strong>. Touche le lien : il s'ouvre dans Safari, qui te donne une clé de
+              connexion à copier. Reviens ensuite ici.
+            </p>
+          ) : (
+            <p>Ouvre le lien de l'e-mail dans Safari, copie la clé de connexion qu'il affiche, puis reviens ici.</p>
+          )}
+          <button type="button" className="btn primary" onClick={pasteKey} disabled={busy}>
+            {busy ? 'Connexion…' : 'Coller la clé de Safari'}
+          </button>
+          <label className="field">
+            <span>Ou colle-la à la main</span>
+            <input
+              autoCapitalize="off"
+              autoCorrect="off"
+              spellCheck={false}
+              value={key}
+              onChange={(e) => setKey(e.target.value)}
+              placeholder="Clé de connexion"
+            />
+          </label>
+          {key.trim() && (
+            <button className="btn primary" disabled={busy}>
+              Se connecter
+            </button>
+          )}
+          <button type="button" className="btn ghost" onClick={() => setStep('email')}>
+            Retour
+          </button>
         </form>
       ) : (
         <form onSubmit={verifyCode} className="stack">

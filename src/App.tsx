@@ -1,9 +1,11 @@
 import type { Session } from '@supabase/supabase-js'
 import { useEffect, useRef, useState } from 'react'
+import { shouldOfferHandoff } from './lib/handoff'
 import { isConfigured, supabase } from './lib/supabase'
 import type { Plant } from './lib/types'
 import { useGarden } from './lib/useGarden'
 import { AddPlant } from './screens/AddPlant'
+import { Handoff, HandoffDone } from './screens/Handoff'
 import { Home } from './screens/Home'
 import { Login } from './screens/Login'
 import { PlanScreen } from './screens/Plan'
@@ -16,6 +18,8 @@ type Tab = 'plants' | 'plan' | 'settings'
 
 export default function App() {
   const [session, setSession] = useState<Session | null | undefined>(undefined)
+  // iPhone : lien de l'e-mail ouvert dans Safari → proposer de passer la connexion à l'app installée.
+  const [handoff, setHandoff] = useState<'offer' | 'done' | null>(shouldOfferHandoff ? 'offer' : null)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session))
@@ -31,8 +35,10 @@ export default function App() {
       </main>
     )
   }
+  if (handoff === 'done') return <HandoffDone />
   if (session === undefined) return null
   if (!session) return <Login />
+  if (handoff === 'offer') return <Handoff onStay={() => setHandoff(null)} onCopied={() => setHandoff('done')} />
   return <Garden session={session} />
 }
 
