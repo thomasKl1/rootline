@@ -1,4 +1,4 @@
-import { useState, type ChangeEvent, type FormEvent } from 'react'
+import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react'
 import { buildContext } from '../lib/diagnose'
 import { usePlantHistory } from '../lib/history'
 import { prepareImage } from '../lib/image'
@@ -22,7 +22,7 @@ type Props = {
   garden: Garden
   onClose: () => void
   onDone: (message: string) => void
-  /** Message court après une action (arrosage, engrais, note), avec annulation possible. */
+  /** Message court après une action (arrosage, engrais, note, photo), avec annulation possible. */
   onToast: (text: string, eventId: string | null) => void
 }
 
@@ -35,10 +35,13 @@ export function PlantSheet({ plant: initialPlant, garden, onClose, onDone, onToa
 
   const [values, setValues] = useState<PlantFormValues>(() => valuesFromPlant(plant))
   const [refreshed, setRefreshed] = useState<Care | null>(null)
-  const [busy, setBusy] = useState<'save' | 'care' | 'delete' | 'photo' | EventKind | null>(null)
+  const [busy, setBusy] = useState<'save' | 'care' | 'delete' | 'shot' | EventKind | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [noteOpen, setNoteOpen] = useState(false)
   const [note, setNote] = useState('')
+  const [shotOpen, setShotOpen] = useState(false)
+  const [shot, setShot] = useState<{ blob: Blob; url: string } | null>(null)
+  const [caption, setCaption] = useState('')
   const [error, setError] = useState<string | null>(null)
 
   const photo = garden.photoUrls.get(plant.id)
@@ -63,6 +66,39 @@ export function PlantSheet({ plant: initialPlant, garden, onClose, onDone, onToa
       setNoteOpen(false)
     }
     onToast(kind === 'water' ? `${plant.name} : arrosage noté` : kind === 'fertilize' ? `${plant.name} : engrais noté` : 'Note ajoutée', id)
+  }
+
+  // Libère l'aperçu de la photo d'historique quand il change ou que la fiche se ferme.
+  useEffect(() => () => {
+    if (shot) URL.revokeObjectURL(shot.url)
+  }, [shot])
+
+  /** Photo choisie pour l'historique : réduite tout de suite, puis montrée en aperçu avant l'envoi. */
+  async function onShot(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setError(null)
+    try {
+      const { blob } = await prepareImage(file)
+      setShot({ blob, url: URL.createObjectURL(blob) })
+    } catch {
+      setError("Cette image n'a pas pu être lue. Essaie avec une autre photo.")
+    }
+  }
+
+  async function addShot(e: FormEvent) {
+    e.preventDefault()
+    if (!shot) return
+    setBusy('shot')
+    setError(null)
+    const { id, error } = await garden.addPhotoEvent(plant, shot.blob, caption.trim() || null)
+    setBusy(null)
+    if (error) return setError(error)
+    setShot(null)
+    setCaption('')
+    setShotOpen(false)
+    onToast(`${plant.name} : photo ajoutée à l'historique`, id)
   }
 
   async function onPhoto(e: ChangeEvent<HTMLInputElement>) {
@@ -172,12 +208,57 @@ export function PlantSheet({ plant: initialPlant, garden, onClose, onDone, onToa
             type="button"
             className="btn ghost grow"
             aria-expanded={noteOpen}
-            onClick={() => setNoteOpen(!noteOpen)}
+            onClick={() => {
+              setNoteOpen(!noteOpen)
+              setShotOpen(false)
+            }}
             disabled={busy !== null}
           >
             Note
           </button>
+          <button
+            type="button"
+            className="btn ghost grow"
+            aria-expanded={shotOpen}
+            onClick={() => {
+              setShotOpen(!shotOpen)
+              setNoteOpen(false)
+            }}
+            disabled={busy !== null}
+          >
+            Photo
+          </button>
         </div>
+
+        {shotOpen && (
+          <form className="stack tight" onSubmit={addShot}>
+            <p className="small muted">Une photo datée dans l'historique, pour suivre l'évolution de la plante.</p>
+            {shot ? (
+              <img src={shot.url} alt="Aperçu de la photo à ajouter" className={`shot-preview${busy === 'shot' ? ' is-busy' : ''}`} />
+            ) : null}
+            <div className="row">
+              <label className={`btn ghost grow center${busy !== null ? ' disabled' : ''}`}>
+                <input type="file" accept="image/*" capture="environment" onChange={onShot} className="visually-hidden" disabled={busy !== null} />
+                {shot ? 'Reprendre' : 'Prendre une photo'}
+              </label>
+              <label className={`btn ghost grow center${busy !== null ? ' disabled' : ''}`}>
+                <input type="file" accept="image/*" onChange={onShot} className="visually-hidden" disabled={busy !== null} />
+                Galerie
+              </label>
+            </div>
+            {shot && (
+              <>
+                <label className="field">
+                  <span className="small muted">Légende (facultatif) : nouvelle pousse, après rempotage…</span>
+                  <textarea value={caption} onChange={(e) => setCaption(e.target.value)} maxLength={500} rows={2} />
+                </label>
+                <button className="btn primary" disabled={busy !== null}>
+                  {busy === 'shot' ? 'Envoi…' : "Ajouter à l'historique"}
+                </button>
+              </>
+            )}
+          </form>
+        )}
 
         {noteOpen && (
           <form
@@ -219,7 +300,7 @@ export function PlantSheet({ plant: initialPlant, garden, onClose, onDone, onToa
         {history.loading ? (
           <p className="small muted">Chargement de l'historique…</p>
         ) : (
-          <History events={history.events} onDelete={garden.undoEvent} />
+          <History events={history.events} photoUrls={history.photoUrls} onDelete={garden.undoEvent} />
         )}
         {history.error && (
           <p className="error" role="alert">

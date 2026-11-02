@@ -28,7 +28,7 @@ export type ExportProgress = (step: string) => void
 
 /**
  * Rassemble toutes les données du foyer dans un seul fichier JSON :
- * foyer et plan, plantes (avec leur photo), arrosages / engrais / notes, mesures des capteurs.
+ * foyer et plan, plantes (avec leur photo), arrosages / engrais / notes / photos, mesures des capteurs.
  */
 export async function buildExport(householdId: string, progress: ExportProgress): Promise<File> {
   progress('Foyer et plantes…')
@@ -43,7 +43,7 @@ export async function buildExport(householdId: string, progress: ExportProgress)
   const events = await fetchAll((from, to) =>
     supabase
       .from('events')
-      .select('id, plant_id, kind, source, occurred_at, note')
+      .select('id, plant_id, kind, source, occurred_at, note, photo_path')
       .eq('household_id', householdId)
       .order('occurred_at')
       .range(from, to),
@@ -81,6 +81,22 @@ export async function buildExport(householdId: string, progress: ExportProgress)
     diagnosesWithPhotos.push({ ...rest, photo })
   }
 
+  // Photos de l'historique : l'image voyage dans le fichier, à la place de son chemin.
+  const eventsWithPhotos = []
+  for (const e of events as { kind: string; photo_path: string | null }[]) {
+    const { photo_path: path, ...rest } = e
+    if (e.kind !== 'photo') {
+      eventsWithPhotos.push(rest)
+      continue
+    }
+    let photo: string | null = null
+    if (path) {
+      const { data } = await supabase.storage.from('plant-photos').download(path)
+      if (data) photo = await blobToDataUrl(data)
+    }
+    eventsWithPhotos.push({ ...rest, photo })
+  }
+
   const withPhotos = []
   for (const p of plants.data ?? []) {
     let photo: string | null = null
@@ -93,11 +109,11 @@ export async function buildExport(householdId: string, progress: ExportProgress)
 
   const content = {
     format: 'rootline-export',
-    version: 2,
+    version: 3,
     exported_at: new Date().toISOString(),
     household: household.data,
     plants: withPhotos,
-    events,
+    events: eventsWithPhotos,
     readings,
     diagnoses: diagnosesWithPhotos,
   }
@@ -179,6 +195,7 @@ export type ImportResult = {
   plants: number
   events: number
   readings: number
+  /** Photos des plantes et photos de l'historique renvoyées dans le stockage. */
   photos: number
   diagnoses: number
   plan: boolean
@@ -200,9 +217,13 @@ export async function importBackup(householdId: string, backup: Backup, progress
   progress('Plantes et historique…')
   // Les photos voyagent à part : on ne les envoie pas à la base.
   const plants = backup.plants.map(({ photo: _photo, ...rest }) => rest)
+  // Les photos de l'historique (export version 3) sont importées à part, avec leur image.
+  const isShot = (e: unknown): e is BackupShot => (e as { kind?: string })?.kind === 'photo'
+  const shots = backup.events.filter(isShot)
+  const events = backup.events.filter((e) => !isShot(e))
   const { data, error } = await supabase.rpc('import_backup', {
     p_household: householdId,
-    p_data: { format: backup.format, household: backup.household, plants, events: backup.events },
+    p_data: { format: backup.format, household: backup.household, plants, events },
   })
   if (error) throw new Error(error.message.includes('not_allowed') ? "Tu n'as pas accès à ce foyer." : error.message)
   const created = (data?.created ?? {}) as Record<string, string>
@@ -233,15 +254,53 @@ export async function importBackup(householdId: string, backup: Backup, progress
   }
 
   const diagnoses = await importDiagnoses(householdId, backup.diagnoses ?? [], ids, progress)
+  const shotsAdded = await importShots(householdId, shots, ids, progress)
 
   return {
     diagnoses,
     plants: Object.keys(created).length,
-    events: (data?.events_added as number) ?? 0,
+    events: ((data?.events_added as number) ?? 0) + shotsAdded,
     readings,
-    photos,
+    photos: photos + shotsAdded,
     plan: data?.plan_restored === true,
   }
+}
+
+type BackupShot = { id: string; plant_id: string; kind: 'photo'; occurred_at: string; note: string | null; photo: string | null }
+
+/**
+ * Photos de l'historique : rattachées à la plante correspondante de ce foyer, sans doublon
+ * (même id, ou même plante et même date), l'image renvoyée dans le stockage avant l'événement.
+ */
+async function importShots(householdId: string, list: BackupShot[], ids: Record<string, string>, progress: ExportProgress): Promise<number> {
+  const todo = list.filter((s) => ids[s.plant_id] && s.photo)
+  if (!todo.length) return 0
+  progress("Photos de l'historique…")
+  const { data: existing } = await supabase
+    .from('events')
+    .select('id, plant_id, occurred_at')
+    .eq('household_id', householdId)
+    .eq('kind', 'photo')
+  const seen = new Set((existing ?? []).flatMap((e) => [e.id, `${e.plant_id}|${new Date(e.occurred_at).getTime()}`]))
+
+  let added = 0
+  for (const s of todo) {
+    const plantId = ids[s.plant_id]
+    const at = new Date(s.occurred_at).getTime()
+    if (seen.has(s.id) || seen.has(`${plantId}|${at}`)) continue
+    const path = `${householdId}/history/${plantId}/${at}.jpg`
+    const up = await supabase.storage.from('plant-photos').upload(path, dataUrlToBlob(s.photo!), { upsert: true, contentType: 'image/jpeg' })
+    if (up.error) continue
+    const row = { household_id: householdId, plant_id: plantId, kind: 'photo', source: 'manual', occurred_at: s.occurred_at, note: s.note, photo_path: path }
+    let ins = await supabase.from('events').insert({ ...row, id: s.id })
+    if (ins.error) ins = await supabase.from('events').insert(row)
+    if (ins.error) {
+      await supabase.storage.from('plant-photos').remove([path])
+      continue
+    }
+    added++
+  }
+  return added
 }
 
 /**

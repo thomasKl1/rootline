@@ -230,12 +230,14 @@ export function useGarden() {
     [load],
   )
 
-  /** Supprime la plante, son historique (en cascade dans la base) et sa photo. */
+  /** Supprime la plante, son historique (en cascade dans la base), sa photo et celles de son historique. */
   const deletePlant = useCallback(
     async (plant: Plant) => {
+      const { data: shots } = await supabase.from('events').select('photo_path').eq('plant_id', plant.id).eq('kind', 'photo')
       const { error } = await supabase.from('plants').delete().eq('id', plant.id)
       if (error) return error.message
-      if (plant.photo_path) await supabase.storage.from(PHOTO_BUCKET).remove([plant.photo_path])
+      const files = [plant.photo_path, ...(shots ?? []).map((s) => s.photo_path as string | null)].filter((p): p is string => !!p)
+      if (files.length) await supabase.storage.from(PHOTO_BUCKET).remove(files)
       await load()
       return null
     },
@@ -257,11 +259,38 @@ export function useGarden() {
     [load],
   )
 
+  /**
+   * Ajoute une photo à l'historique de la plante, avec une légende facultative, pour suivre son
+   * évolution. Fichier : <foyer>/history/<plante>/<horodatage>.jpg. Renvoie l'id de l'événement.
+   */
+  const addPhotoEvent = useCallback(
+    async (plant: Plant, photo: Blob, caption: string | null) => {
+      const path = `${plant.household_id}/history/${plant.id}/${Date.now()}.jpg`
+      const upload = await supabase.storage.from(PHOTO_BUCKET).upload(path, photo, { contentType: 'image/jpeg' })
+      if (upload.error) return { id: null, error: upload.error.message }
+      const { data, error } = await supabase
+        .from('events')
+        .insert({ household_id: plant.household_id, plant_id: plant.id, kind: 'photo', source: 'manual', note: caption, photo_path: path })
+        .select('id')
+        .single()
+      if (error) {
+        await supabase.storage.from(PHOTO_BUCKET).remove([path])
+        return { id: null, error: error.message }
+      }
+      await load()
+      return { id: data.id as string, error: null }
+    },
+    [load],
+  )
+
   const water = useCallback((plant: Plant) => addEvent(plant, 'water'), [addEvent])
 
+  /** Supprime un événement ; pour une photo, l'image est aussi retirée du stockage. */
   const undoEvent = useCallback(
     async (eventId: string) => {
+      const { data: row } = await supabase.from('events').select('photo_path').eq('id', eventId).maybeSingle()
       const { error } = await supabase.from('events').delete().eq('id', eventId)
+      if (!error && row?.photo_path) await supabase.storage.from(PHOTO_BUCKET).remove([row.photo_path as string])
       await load()
       return error?.message ?? null
     },
@@ -271,7 +300,7 @@ export function useGarden() {
   const plan = state.household?.floor_plan ?? null
   const rooms = useMemo(() => (plan ? plan.rooms.map((r) => r.name) : ROOMS), [plan])
 
-  return { ...state, plan, rooms, reload: load, updateHousehold, addPlant, updatePlant, changePhoto, deletePlant, addEvent, water, undoEvent }
+  return { ...state, plan, rooms, reload: load, updateHousehold, addPlant, updatePlant, changePhoto, deletePlant, addEvent, addPhotoEvent, water, undoEvent }
 }
 
 /** Échéance d'engrais d'une plante, avec la dernière conductivité mesurée si elle a un capteur. */

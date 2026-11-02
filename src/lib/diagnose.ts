@@ -30,7 +30,7 @@ type ContextInput = {
 }
 
 const fmt = (d: Date | string) => new Date(d).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
-const KIND = { water: 'arrosage', fertilize: 'engrais', note: 'note' } as const
+const KIND = { water: 'arrosage', fertilize: 'engrais', note: 'note', photo: 'photo' } as const
 
 /**
  * Fiche de la plante en texte, pour l'IA ou pour Claude : tout ce que l'app sait déjà.

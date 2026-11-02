@@ -35,7 +35,7 @@ export type Reading = {
   battery: number | null
 }
 
-export type EventKind = 'water' | 'fertilize' | 'note'
+export type EventKind = 'water' | 'fertilize' | 'note' | 'photo'
 
 export type WaterEvent = {
   id: string
@@ -44,7 +44,13 @@ export type WaterEvent = {
   source: 'manual' | 'auto'
 }
 
-export type PlantEvent = WaterEvent & { kind: EventKind; note: string | null }
+export type PlantEvent = WaterEvent & {
+  kind: EventKind
+  /** Texte d'une note, ou légende d'une photo. */
+  note: string | null
+  /** Chemin de l'image dans le bucket plant-photos (événements « photo » seulement). */
+  photo_path: string | null
+}
 
 /** Pièces proposées tant qu'aucun plan n'est importé. */
 export const ROOMS = ['Salon', 'Chambre', 'Cuisine', 'Bureau', "Salle d'eau", 'Couloir', 'Toilettes'] as const

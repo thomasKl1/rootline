@@ -221,7 +221,7 @@ function ExportCard({ garden }: { garden: Garden }) {
       <div>
         <h2 className="name">Sauvegarde</h2>
         <p className="small muted">
-          Un fichier avec tout le suivi : plantes et photos, arrosages, engrais, notes, diagnostics, mesures des
+          Un fichier avec tout le suivi : plantes et photos, arrosages, engrais, notes, photos de l'historique, diagnostics, mesures des
           capteurs et plan. L'offre gratuite de Supabase ne fait pas de sauvegarde : garde-en une copie de temps en temps. La
           restauration ajoute ce qui manque sans rien écraser.
         </p>

@@ -13,21 +13,23 @@ type History = {
   events: PlantEvent[]
   /** Du plus ancien au plus récent. */
   readings: Reading[]
+  /** URL temporaire (1 h) de chaque photo de l'historique, par chemin de fichier. */
+  photoUrls: Map<string, string>
 }
 
 /**
- * Historique d'une plante : ses événements (arrosages, engrais, notes) et, si elle a un capteur,
+ * Historique d'une plante : ses événements (arrosages, engrais, notes, photos) et, si elle a un capteur,
  * ses mesures des 30 derniers jours. `version` change à chaque rechargement du jardin.
  */
 export function usePlantHistory(plant: Plant, version: unknown) {
-  const [state, setState] = useState<History>({ loading: true, error: null, events: [], readings: [] })
+  const [state, setState] = useState<History>({ loading: true, error: null, events: [], readings: [], photoUrls: new Map() })
 
   const load = useCallback(async () => {
     const since = new Date(Date.now() - READINGS_DAYS * DAY).toISOString()
     const [events, readings] = await Promise.all([
       supabase
         .from('events')
-        .select('id, plant_id, occurred_at, source, kind, note')
+        .select('id, plant_id, occurred_at, source, kind, note, photo_path')
         .eq('plant_id', plant.id)
         .order('occurred_at', { ascending: false })
         .limit(200),
@@ -42,11 +44,13 @@ export function usePlantHistory(plant: Plant, version: unknown) {
         : Promise.resolve({ data: [] as Reading[], error: null }),
     ])
     const error = events.error ?? readings.error
+    const list = (events.data ?? []) as PlantEvent[]
     setState({
       loading: false,
       error: error?.message ?? null,
-      events: (events.data ?? []) as PlantEvent[],
+      events: list,
       readings: (readings.data ?? []) as Reading[],
+      photoUrls: await signPaths(list.map((e) => e.photo_path).filter((p): p is string => !!p)),
     })
   }, [plant.id, plant.sensor_mac])
 
@@ -55,6 +59,15 @@ export function usePlantHistory(plant: Plant, version: unknown) {
   }, [load, version])
 
   return state
+}
+
+/** Les photos sont dans un espace privé : liens signés, valables une heure. */
+async function signPaths(paths: string[]) {
+  const urls = new Map<string, string>()
+  if (paths.length === 0) return urls
+  const { data } = await supabase.storage.from('plant-photos').createSignedUrls(paths, 3600)
+  for (const item of data ?? []) if (item.path && item.signedUrl) urls.set(item.path, item.signedUrl)
+  return urls
 }
 
 export type Sample = { t: number; v: number }

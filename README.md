@@ -64,6 +64,10 @@ npm run dev                  # http://localhost:5173
 
 Dans la fiche d'une plante, « Reprendre la photo » ou « Choisir dans la galerie » remplace sa photo ; l'ancienne est supprimée du stockage.
 
+### Photos dans l'historique
+
+Le bouton « Photo » de la fiche (à côté de « Note ») ajoute une photo datée à l'historique, avec une légende facultative, sans toucher à la photo principale. Les photos s'affichent en bande « Évolution » (de la plus ancienne à la plus récente) au-dessus de la frise, et en vignette dans la liste ; un appui l'ouvre en grand, avec le nombre de jours écoulés depuis la première et des flèches (ou un glissement) pour passer à la suivante. Supprimer l'événement supprime aussi l'image. Les fichiers sont rangés sous `<foyer>/history/<plante>/` dans le bucket `plant-photos`, et voyagent dans la sauvegarde (export version 3). Nécessite la migration [`0011_event_photos.sql`](supabase/migrations/0011_event_photos.sql).
+
 ## Capteurs et passerelle ESP32
 
 Les capteurs Flower Care (HHCCJCY01) diffusent leurs mesures en Bluetooth. Une carte ESP32 sous [ESPHome](https://esphome.io) les écoute et envoie toutes les 15 minutes l'humidité, l'engrais (conductivité), la lumière et la température à la fonction [`ingest-readings`](supabase/functions/ingest-readings/index.ts). La fonction range chaque mesure dans le foyer de la plante liée au capteur, et note un arrosage automatique quand l'humidité bondit d'au moins 10 points par rapport au point bas des 3 dernières heures (pas de doublon dans les 6 heures qui suivent un arrosage, manuel ou détecté). Les règles sont dans [`detect.ts`](supabase/functions/ingest-readings/detect.ts).
