@@ -1,8 +1,12 @@
 // Rootline — règles de la passerelle : nettoyage des mesures et détection d'un arrosage.
 // Sans dépendance, pour être testé sans réseau ni base.
 
-/** Hausse d'humidité (en points de %) qui signale un arrosage. */
-export const WATERING_JUMP = 10
+/**
+ * Hausse d'humidité (en points de %, après calibration) qui signale un arrosage.
+ * Mesuré sur les arrosages réels : la première mesure après l'arrosage monte de 4 à 14 points, puis
+ * redescend de quelques points en une heure ; hors arrosage, les variations restent sous 3 points.
+ */
+export const WATERING_JUMP = 4
 /** Fenêtre (heures) dans laquelle on cherche l'humidité la plus basse avant la mesure. */
 export const BASELINE_HOURS = 3
 /** Délai minimal (heures) après un arrosage, manuel ou détecté, avant d'en détecter un nouveau. */
@@ -31,6 +35,19 @@ function num(v: unknown, min: number, max: number): number | null {
   const n = typeof v === 'string' ? Number(v) : v
   if (typeof n !== 'number' || !Number.isFinite(n) || n < min || n > max) return null
   return n
+}
+
+/**
+ * Humidité ramenée sur une échelle commune à tous les capteurs : `dry` (capteur à l'air libre) → 0 %,
+ * `wet` (capteur plongé dans l'eau) → 100 %. Sans calibration (`wet` vide), la valeur brute est gardée.
+ * Arrondie au dixième et bornée à 0–100.
+ */
+export function calibrate(raw: number | null, dry: number | null, wet: number | null): number | null {
+  if (raw == null || wet == null) return raw
+  const low = dry ?? 0
+  if (wet <= low) return raw
+  const v = ((raw - low) / (wet - low)) * 100
+  return Math.round(Math.min(100, Math.max(0, v)) * 10) / 10
 }
 
 /**

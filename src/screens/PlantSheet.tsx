@@ -13,7 +13,7 @@ import { Curves } from './Curves'
 import { HealthSection } from './Diagnose'
 import { FertilizerCard } from './Fertilizer'
 import { History } from './History'
-import { applyCare, careOrigin, PlantFields, toPlantFields, valuesFromPlant, type PlantFormValues } from './PlantForm'
+import { applyCare, calibrationError, careOrigin, PlantFields, toPlantFields, valuesFromPlant, type PlantFormValues } from './PlantForm'
 
 type Garden = ReturnType<typeof useGarden>
 
@@ -51,6 +51,8 @@ export function PlantSheet({ plant: initialPlant, garden, onClose, onDone, onToa
     plant.sensor_mac ? garden.latestReading.get(plant.sensor_mac) : undefined,
     lastWatered,
   )
+  const latest = plant.sensor_mac ? garden.latestReading.get(plant.sensor_mac) : undefined
+  const rawMoisture = latest?.moisture_raw != null ? { value: latest.moisture_raw, at: latest.measured_at } : null
   const place = [plant.room, plant.window_orientation && `fenêtre ${ORIENTATION_LABEL[plant.window_orientation]}`]
     .filter(Boolean)
     .join(' · ')
@@ -132,6 +134,8 @@ export function PlantSheet({ plant: initialPlant, garden, onClose, onDone, onToa
 
   async function save(e: FormEvent) {
     e.preventDefault()
+    const calib = calibrationError(values)
+    if (calib) return setError(calib)
     setBusy('save')
     const fields: PlantUpdate = toPlantFields(values)
     if ((fields.room ?? null) !== plant.room) {
@@ -326,7 +330,7 @@ export function PlantSheet({ plant: initialPlant, garden, onClose, onDone, onToa
                 )}
               </div>
             )}
-            <PlantFields values={values} onChange={setValues} />
+            <PlantFields values={values} onChange={setValues} rawMoisture={rawMoisture} />
             <button className="btn primary" disabled={busy !== null || !values.name.trim()}>
               {busy === 'save' ? 'Enregistrement…' : 'Enregistrer'}
             </button>

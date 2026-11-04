@@ -70,7 +70,7 @@ Le bouton « Photo » de la fiche (à côté de « Note ») ajoute une photo dat
 
 ## Capteurs et passerelle ESP32
 
-Les capteurs Flower Care (HHCCJCY01) diffusent leurs mesures en Bluetooth. Une carte ESP32 sous [ESPHome](https://esphome.io) les écoute et envoie toutes les 15 minutes l'humidité, l'engrais (conductivité), la lumière et la température à la fonction [`ingest-readings`](supabase/functions/ingest-readings/index.ts). La fonction range chaque mesure dans le foyer de la plante liée au capteur, et note un arrosage automatique quand l'humidité bondit d'au moins 10 points par rapport au point bas des 3 dernières heures (pas de doublon dans les 6 heures qui suivent un arrosage, manuel ou détecté). Les règles sont dans [`detect.ts`](supabase/functions/ingest-readings/detect.ts).
+Les capteurs Flower Care (HHCCJCY01) diffusent leurs mesures en Bluetooth. Une carte ESP32 sous [ESPHome](https://esphome.io) les écoute et envoie toutes les 15 minutes l'humidité, l'engrais (conductivité), la lumière et la température à la fonction [`ingest-readings`](supabase/functions/ingest-readings/index.ts). La fonction range chaque mesure dans le foyer de la plante liée au capteur, et note un arrosage automatique quand l'humidité bondit d'au moins 4 points par rapport au point bas des 3 dernières heures (pas de doublon dans les 6 heures qui suivent un arrosage, manuel ou détecté). Les règles sont dans [`detect.ts`](supabase/functions/ingest-readings/detect.ts).
 
 ### 1. Supabase
 
@@ -88,6 +88,12 @@ Les capteurs Flower Care (HHCCJCY01) diffusent leurs mesures en Bluetooth. Une c
 ### 3. Dans l'app
 
 Dans la fiche de chaque plante, renseigne l'adresse de son capteur (champ **Capteur Flower Care**). Les mesures d'un capteur lié à aucune plante sont ignorées. Les capteurs récents (firmware 3.2.1) n'envoient plus le niveau de pile.
+
+### 4. Calibration
+
+Dans l'eau, un Flower Care n'affiche pas 100 % (souvent 70 à 90 %) et chaque exemplaire a sa propre échelle. Plonge le capteur jusqu'au trait dans un verre d'eau, attends la mesure suivante, puis dans la fiche de la plante, **Calibration du capteur**, renseigne la valeur « dans l'eau » (le bouton « Prendre comme « dans l'eau » » reprend la dernière valeur brute). L'humidité est alors ramenée sur 0–100 %, historique compris ; la valeur brute reste dans `readings.moisture_raw`. Migration : [`0012_sensor_calibration.sql`](supabase/migrations/0012_sensor_calibration.sql).
+
+Les seuils d'humidité d'Open Plantbook sont donnés sur l'échelle brute d'un Flower Care : après calibration, relève-les d'environ 100 / (valeur dans l'eau), par ex. ×1,2 pour un capteur à 82.
 
 ## Engrais
 

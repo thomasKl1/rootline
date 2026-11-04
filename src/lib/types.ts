@@ -12,6 +12,9 @@ export type Plant = {
   map_x: number | null
   map_y: number | null
   sensor_mac: string | null
+  /** Calibration du capteur : valeur brute à l'air libre (→ 0 %) et dans l'eau (→ 100 %). */
+  sensor_dry: number | null
+  sensor_wet: number | null
   moisture_min: number | null
   moisture_max: number | null
   conductivity_min: number | null
@@ -28,7 +31,10 @@ export type Plant = {
 export type Reading = {
   sensor_mac: string
   measured_at: string
+  /** Humidité calibrée (voir Plant.sensor_wet) ; égale à la brute si le capteur n'est pas calibré. */
   moisture: number | null
+  /** Valeur brute du capteur, avant calibration. */
+  moisture_raw?: number | null
   conductivity: number | null
   light: number | null
   temperature: number | null

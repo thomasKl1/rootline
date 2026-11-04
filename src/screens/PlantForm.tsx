@@ -21,6 +21,9 @@ export type PlantFormValues = {
   lightMin: Num
   /** Adresse du capteur, telle que saisie ('' = pas de capteur). */
   sensor: string
+  /** Calibration : valeur brute du capteur à l'air libre et dans l'eau ('' = non calibré). */
+  dry: Num
+  wet: Num
 }
 
 const orEmpty = (v: number | null | undefined): Num => (v == null ? '' : v)
@@ -44,6 +47,8 @@ export function valuesFromCare(name: string, care: Care | null | undefined): Pla
     ecMax: orEmpty(care?.conductivity_max),
     lightMin: orEmpty(care?.light_min),
     sensor: '',
+    dry: '',
+    wet: '',
   }
 }
 
@@ -59,13 +64,15 @@ export function valuesFromPlant(p: Plant): PlantFormValues {
     ecMax: orEmpty(p.conductivity_max),
     lightMin: orEmpty(p.light_min),
     sensor: p.sensor_mac ?? '',
+    dry: orEmpty(p.sensor_dry),
+    wet: orEmpty(p.sensor_wet),
   }
 }
 
 /** Remplace les besoins (fréquences et seuils) par ceux d'Open Plantbook, sans toucher au nom ni à la pièce. */
 export function applyCare(v: PlantFormValues, care: Care): PlantFormValues {
   const fresh = valuesFromCare(v.name, care)
-  return { ...fresh, name: v.name, room: v.room, sensor: v.sensor }
+  return { ...fresh, name: v.name, room: v.room, sensor: v.sensor, dry: v.dry, wet: v.wet }
 }
 
 export function toPlantFields(v: PlantFormValues): Omit<NewPlant, 'species' | 'species_common'> {
@@ -80,7 +87,17 @@ export function toPlantFields(v: PlantFormValues): Omit<NewPlant, 'species' | 's
     conductivity_max: orNull(v.ecMax),
     light_min: orNull(v.lightMin),
     sensor_mac: normalizeMac(v.sensor),
+    // La valeur « dans l'eau » suffit : à l'air libre, un Flower Care affiche 0.
+    sensor_dry: v.wet === '' ? null : orNull(v.dry),
+    sensor_wet: orNull(v.wet),
   }
+}
+
+/** La calibration saisie est utilisable (valeur dans l'eau au-dessus de celle à l'air libre). */
+export function calibrationError(v: PlantFormValues): string | null {
+  if (v.wet === '') return v.dry === '' ? null : "Indique aussi la valeur dans l'eau."
+  if (v.wet <= (v.dry === '' ? 0 : v.dry)) return "La valeur dans l'eau doit dépasser celle à l'air libre."
+  return null
 }
 
 /** Phrase courte sur l'origine des besoins, affichée sous le nom de l'espèce. */
@@ -99,7 +116,16 @@ export function careOrigin(care: Care | null | undefined): string {
 }
 
 /** Champs communs à l'ajout et à la fiche d'une plante (contrôlés par le parent). */
-export function PlantFields({ values, onChange }: { values: PlantFormValues; onChange: (v: PlantFormValues) => void }) {
+export function PlantFields({
+  values,
+  onChange,
+  rawMoisture,
+}: {
+  values: PlantFormValues
+  onChange: (v: PlantFormValues) => void
+  /** Dernière valeur brute du capteur lié, pour la calibration. */
+  rawMoisture?: { value: number; at: string } | null
+}) {
   const set = <K extends keyof PlantFormValues>(key: K, value: PlantFormValues[K]) => onChange({ ...values, [key]: value })
   const rooms = useContext(RoomsContext)
   // Une pièce qui n'existe plus dans le plan reste affichée, pour ne pas la perdre en silence.
@@ -143,6 +169,39 @@ export function PlantFields({ values, onChange }: { values: PlantFormValues; onC
         />
         <span className="hint">L'adresse relevée au scan de la passerelle. Laisse vide si la plante n'a pas de capteur.</span>
       </label>
+
+      {values.sensor.trim() && (
+        <details className="card pad-card thresholds">
+          <summary>
+            <span className="name">Calibration du capteur</span>
+            <span className="small muted">
+              {values.wet === '' ? 'non calibré' : `air ${values.dry === '' ? 0 : values.dry} · eau ${values.wet}`}
+            </span>
+          </summary>
+          <div className="stack">
+            <p className="hint">
+              Dans l'eau, un Flower Care n'affiche pas 100 % et chaque capteur a sa propre échelle. Plonge-le jusqu'au trait
+              dans un verre d'eau, attends la mesure suivante (15 min) et note la valeur ; à l'air libre, c'est en général 0.
+              L'humidité est alors ramenée sur 0–100 %, historique compris.
+            </p>
+            <div className="row">
+              <NumberField label="À l'air libre" value={values.dry} min={0} max={100} unit="brut" onChange={(v) => set('dry', v)} />
+              <NumberField label="Dans l'eau" value={values.wet} min={1} max={100} unit="brut" onChange={(v) => set('wet', v)} />
+            </div>
+            {rawMoisture && (
+              <div className="row">
+                <span className="small muted grow">
+                  Dernière valeur brute : <strong>{Math.round(rawMoisture.value)}</strong> ({timeAgo(rawMoisture.at)})
+                </span>
+                <button type="button" className="btn ghost" onClick={() => set('wet', Math.round(rawMoisture.value))}>
+                  Prendre comme « dans l'eau »
+                </button>
+              </div>
+            )}
+            {calibrationError(values) && <p className="error small">{calibrationError(values)}</p>}
+          </div>
+        </details>
+      )}
 
       <details className="card pad-card thresholds">
         <summary>
@@ -192,4 +251,12 @@ function summarize(v: PlantFormValues) {
   if (v.ecMin !== '' || v.ecMax !== '') parts.push(`engrais ${r(v.ecMin, v.ecMax)}`)
   if (v.lightMin !== '') parts.push(`≥ ${v.lightMin} lux`)
   return parts.length ? parts.join(' · ') : 'non renseignés'
+}
+
+function timeAgo(iso: string) {
+  const min = Math.round((Date.now() - new Date(iso).getTime()) / 60_000)
+  if (min < 1) return "à l'instant"
+  if (min < 60) return `il y a ${min} min`
+  const h = Math.round(min / 60)
+  return h < 24 ? `il y a ${h} h` : `il y a ${Math.round(h / 24)} j`
 }

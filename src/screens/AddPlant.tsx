@@ -3,7 +3,7 @@ import { identifyPhoto, searchSpecies, type Candidate } from '../lib/identify'
 import { prepareImage } from '../lib/image'
 import { useSwipeToClose } from '../lib/useSwipeToClose'
 import type { NewPlant } from '../lib/useGarden'
-import { careOrigin, PlantFields, toPlantFields, valuesFromCare, type PlantFormValues } from './PlantForm'
+import { calibrationError, careOrigin, PlantFields, toPlantFields, valuesFromCare, type PlantFormValues } from './PlantForm'
 
 type Props = {
   onCancel: () => void
@@ -224,6 +224,8 @@ function Details(props: {
 
   async function submit(e: FormEvent) {
     e.preventDefault()
+    const calib = calibrationError(values)
+    if (calib) return setError(calib)
     setBusy(true)
     const err = await props.onSave({
       ...toPlantFields(values),

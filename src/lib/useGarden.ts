@@ -18,6 +18,9 @@ export type NewPlant = {
   interval_winter_days: number | null
   /** Adresse du capteur Flower Care lié (AA:BB:CC:DD:EE:FF), ou null. */
   sensor_mac: string | null
+  /** Calibration du capteur (valeurs brutes à l'air libre et dans l'eau), ou null. */
+  sensor_dry: number | null
+  sensor_wet: number | null
 }
 
 /** Message lisible pour les erreurs de la base qu'on sait expliquer. */
@@ -119,7 +122,7 @@ export function useGarden() {
         .limit(600),
       supabase
         .from('readings')
-        .select('sensor_mac, measured_at, moisture, conductivity, light, temperature, battery')
+        .select('sensor_mac, measured_at, moisture, moisture_raw, conductivity, light, temperature, battery')
         .eq('household_id', householdId)
         .order('measured_at', { ascending: false })
         .limit(300),

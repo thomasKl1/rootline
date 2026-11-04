@@ -5,7 +5,8 @@
 //   (un objet seul est aussi accepté)
 //
 // Pour chaque mesure : retrouve la plante liée au capteur (plants.sensor_mac), enregistre la mesure
-// dans son foyer, puis note un arrosage automatique si l'humidité vient de bondir (detect.ts).
+// dans son foyer (humidité calibrée selon le capteur, valeur brute gardée à côté), puis note un
+// arrosage automatique si l'humidité vient de bondir (detect.ts).
 // Un capteur lié à aucune plante est ignoré : il n'a pas de foyer où ranger ses mesures.
 //
 // Déployée avec verify_jwt = false : la passerelle n'a pas de compte. Elle s'authentifie avec le
@@ -13,7 +14,7 @@
 
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2'
-import { BASELINE_HOURS, cleanMeasure, detectWatering } from './detect.ts'
+import { BASELINE_HOURS, calibrate, cleanMeasure, detectWatering } from './detect.ts'
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
@@ -28,7 +29,15 @@ function sameSecret(a: string, b: string) {
   return diff === 0
 }
 
-type PlantRow = { id: string; household_id: string; name: string; sensor_mac: string; archived_at: string | null }
+type PlantRow = {
+  id: string
+  household_id: string
+  name: string
+  sensor_mac: string
+  archived_at: string | null
+  sensor_dry: number | null
+  sensor_wet: number | null
+}
 
 export async function ingest(db: SupabaseClient, payload: unknown, now = new Date()) {
   const list = Array.isArray((payload as { readings?: unknown })?.readings)
@@ -40,7 +49,7 @@ export async function ingest(db: SupabaseClient, payload: unknown, now = new Dat
 
   const macs = [...new Set(measures.map((m) => m.sensor_mac))]
   const { data: plants, error } = await db.from('plants')
-    .select('id, household_id, name, sensor_mac, archived_at').in('sensor_mac', macs)
+    .select('id, household_id, name, sensor_mac, archived_at, sensor_dry, sensor_wet').in('sensor_mac', macs)
   if (error) throw error
   const byMac = new Map((plants as PlantRow[] ?? []).map((p) => [p.sensor_mac, p]))
 
@@ -53,10 +62,11 @@ export async function ingest(db: SupabaseClient, payload: unknown, now = new Dat
       report.ignored.push({ sensor_mac: m.sensor_mac, reason: 'capteur associé à aucune plante' })
       continue
     }
+    const moisture = calibrate(m.moisture, plant.sensor_dry, plant.sensor_wet)
 
     // Arrosage ? Comparé aux mesures précédentes, avant d'enregistrer la nouvelle.
     let watered = false
-    if (!plant.archived_at && m.moisture != null) {
+    if (!plant.archived_at && moisture != null) {
       const [previous, lastWater] = await Promise.all([
         db.from('readings').select('measured_at, moisture').eq('sensor_mac', m.sensor_mac)
           .gte('measured_at', since).order('measured_at', { ascending: false }).limit(100),
@@ -65,14 +75,20 @@ export async function ingest(db: SupabaseClient, payload: unknown, now = new Dat
       ])
       const last = (lastWater.data as { occurred_at: string }[] | null)?.[0]
       watered = detectWatering(
-        m.moisture,
+        moisture,
         (previous.data ?? []) as { measured_at: string; moisture: number | null }[],
         last ? new Date(last.occurred_at) : null,
         now,
       )
     }
 
-    const { error: insertError } = await db.from('readings').insert({ ...m, household_id: plant.household_id, measured_at })
+    const { error: insertError } = await db.from('readings').insert({
+      ...m,
+      moisture,
+      moisture_raw: m.moisture,
+      household_id: plant.household_id,
+      measured_at,
+    })
     if (insertError) throw insertError
     report.stored++
 
